@@ -1,0 +1,14 @@
+{
+  "scenario": "mock_ed_visit_eob",
+  "description": "Synthetic EOB-style extraction payload used by tests (vision step mocked).",
+  "document_media_type": "application/pdf",
+  "document_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "extracted_billing_data": {
+    "provider_name": "Summit Health IPA",
+    "npi": "1558498720",
+    "patient_id": "EOB-DEMO-001",
+    "cpt_codes": ["99285"],
+    "billed_amount": 1850.5,
+    "notes": "fixture_mock_eob_tabular_line_items"
+  }
+}

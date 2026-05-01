@@ -1,0 +1,8 @@
+# Example only — copy to `terraform.tfvars` (git-ignored) before `terraform apply`.
+
+# aws_region              = "us-east-1"
+# environment             = "dev"
+# openai_api_secret_arn   = "arn:aws:secretsmanager:..." # OPENAI_API_KEY (required for embeddings)
+# anthropic_api_secret_arn = "arn:aws:secretsmanager:..." # optional vision fallback
+# ecs_desired_count       = 2
+# certificate_arn         = "" # set to ACM ARN for HTTPS listener

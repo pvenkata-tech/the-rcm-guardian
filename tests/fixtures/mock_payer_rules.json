@@ -1,0 +1,24 @@
+[
+  {
+    "payer_name": "Mock National Payor",
+    "rule_key": "fixture-ed-high-acuity-em",
+    "cpt_codes": ["99285"],
+    "body": "Emergency department E/M CPT 99285 requires documented high acuity. Prior authorization is required for repeat ED visits within 7 days. If prior authorization cannot be located in LIMS, flag as High Risk of Denial.",
+    "metadata": {
+      "prior_auth_required": true,
+      "risk_focus": "prior_auth"
+    },
+    "score": 0.96
+  },
+  {
+    "payer_name": "Mock National Payor",
+    "rule_key": "fixture-radiology-supporting",
+    "cpt_codes": ["73560"],
+    "body": "Radiology extremity codes require ordering provider NPI consistency.",
+    "metadata": {
+      "prior_auth_required": false,
+      "risk_focus": "documentation"
+    },
+    "score": 0.71
+  }
+]
