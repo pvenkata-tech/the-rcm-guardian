@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse, Response
 # - OTEL_RESOURCE_ATTRIBUTES / OTEL_SERVICE_NAME
 # - OTLP exporters (gRPC/HTTP) via OTEL_EXPORTER_OTLP_ENDPOINT
 # - FastAPI auto-instrumentation: opentelemetry-instrumentation-fastapi
-# Example (commented intentionally — avoids mandatory exporter deps in this prototype):
+# Example (commented intentionally — avoids mandatory exporter deps in this codebase):
 # from opentelemetry import trace
 # from opentelemetry.sdk.resources import Resource
 # from opentelemetry.sdk.trace import TracerProvider

@@ -1,12 +1,53 @@
+<div align="center">
+
 # RCM Guardian
 
-## Overview
+**Multimodal billing intelligence — LangGraph extraction, payer-rule RAG, LIMS reconciliation, Postgres checkpoints, and required LangSmith tracing.**
+
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-111?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16_%2B_pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker_Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+[![Terraform](https://img.shields.io/badge/Terraform-AWS-7B42BC?style=flat-square&logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)](https://prometheus.io/)
+[![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)](https://grafana.com/)
+
+</div>
+
+---
+
+## 📑 Contents
+
+| | |
+| :--- | :--- |
+| 📋 | [Overview](#overview) |
+| 🚀 | [Run locally](#run-locally) |
+| 🌐 | [Deployment topology](#deployment-topology) |
+| 🏗️ | [Architecture](#architecture) |
+| ✨ | [Features](#features) |
+| 🛠️ | [Tech stack](#tech-stack) |
+| 📁 | [Repository layout](#repository-layout) |
+| ⚡ | [Quick reference](#quick-reference) |
+| 🔧 | [Configuration](#configuration) |
+| 🔀 | [LangGraph state](#langgraph-state-rcmgraphstate) |
+| 🌍 | [HTTP API](#http-api) |
+| 🧪 | [Testing](#testing) |
+| ☁️ | [Terraform (AWS)](#terraform-aws) |
+| 🔒 | [Security](#security) |
+| ✅ | [Production checklist](#production-checklist) |
+| 📊 | [Observability](#observability) |
+| 📄 | [License](#license) |
+
+---
+
+## 📋 Overview
 
 RCM Guardian is a FastAPI service that runs a LangGraph workflow over billing documents: multimodal extraction (PDF/image), pgvector-backed retrieval of payer policy rules, forensic auditing with a **mock LIMS** (Docker `lims-mock` or in-process fallback) or a **real LIMS URL** when you set `LIMS_BASE_URL`, Postgres-backed checkpoints, and **LangSmith** tracing to the live LangSmith API.
 
-The codebase is **production-oriented prototype**: Docker images align with an AWS Fargate–style deployment defined under `terraform/`. Configure secrets via environment variables locally and via AWS Secrets Manager in deployed environments.
+The codebase is **built for production-style deployment**: Docker images align with an AWS Fargate–style layout defined under `terraform/`. Configure secrets via environment variables locally and via AWS Secrets Manager in deployed environments.
 
-## Run locally
+## 🚀 Run locally
 
 Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `seed_payer_rules_if_empty`).
 
@@ -38,7 +79,7 @@ Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `s
 
 **Tests:** `tests/test_complete_flow_fixtures.py` patches vision and embeddings and uses fixture payer rules (no Postgres). `tests/test_eob_processing.py` stubs LLM calls unless **`RUN_OPENAI_INTEGRATION=1`**.
 
-## Deployment topology
+## 🌐 Deployment topology
 
 | Concern | Docker Compose | AWS (`terraform/`) |
 |--------|----------------|---------------------|
@@ -52,7 +93,7 @@ Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `s
 
 **`LIMS_BASE_URL`** defaults to **`http://lims-mock:8080`** in Compose. Override in `.env` for a **real** LIMS (same `POST /v1/prior-authorizations` JSON contract). **LangSmith is mandatory:** **`LANGCHAIN_API_KEY`** must be set; **`LANGCHAIN_TRACING_V2`** must remain **`true`** (the app refuses to start otherwise).
 
-## Architecture
+## 🏗️ Architecture
 
 ```mermaid
 flowchart TB
@@ -149,30 +190,32 @@ sequenceDiagram
     end
 ```
 
-## Features
+## ✨ Features
 
-| Area | Description |
-|------|-------------|
-| **API** | Async FastAPI; Pydantic request/response models |
-| **Orchestration** | LangGraph graph with conditional routing and `interrupt()` for HITL |
-| **Extraction** | PyMuPDF PDF rasterization + vision model; prompts tuned for tabular billing lines |
-| **RAG** | OpenAI embeddings + cosine similarity in PostgreSQL/pgvector |
-| **Auditing** | Rule hits vs CPT/NPI; LIMS reconciliation; structured findings (`finding_kind`, `status`, `reason`) and `prior_authorization_reconciliation` |
-| **LIMS** | **`lims-mock`** container or in-process mock; or real URL via **`LIMS_BASE_URL`** |
-| **Artifact storage** | Optional `UPLOADS_DIR` persistence (Compose: `./uploads`) |
-| **Checkpoints** | **`AsyncPostgresSaver`** in the same database as pgvector (multi-instance safe) |
-| **Observability** | **`GET /metrics`** (Prometheus); **Grafana** dashboard; **LangSmith** (required, **`LANGCHAIN_*`**); OTLP/Sentry placeholders in `rcm_guardian/app.py` |
-| **IaC** | `terraform/`: VPC, ALB, ECS, ECR, RDS, Secrets Manager, S3, IAM |
+| | Area | Description |
+| :---: | --- | --- |
+| 🔌 | **API** | Async FastAPI; Pydantic request/response models |
+| 🔁 | **Orchestration** | LangGraph graph with conditional routing and `interrupt()` for HITL |
+| 👁️ | **Extraction** | PyMuPDF PDF rasterization + vision model; prompts tuned for tabular billing lines |
+| 🧠 | **RAG** | OpenAI embeddings + cosine similarity in PostgreSQL/pgvector |
+| ⚖️ | **Auditing** | Rule hits vs CPT/NPI; LIMS reconciliation; structured findings (`finding_kind`, `status`, `reason`) and `prior_authorization_reconciliation` |
+| 🏥 | **LIMS** | **`lims-mock`** container or in-process mock; or real URL via **`LIMS_BASE_URL`** |
+| 💾 | **Artifact storage** | Optional `UPLOADS_DIR` persistence (Compose: `./uploads`) |
+| ♻️ | **Checkpoints** | **`AsyncPostgresSaver`** in the same database as pgvector (multi-instance safe) |
+| 📈 | **Observability** | **`GET /metrics`** (Prometheus); **Grafana** dashboard; **LangSmith** (required, **`LANGCHAIN_*`**); OTLP/Sentry placeholders in `rcm_guardian/app.py` |
+| 🏗️ | **IaC** | `terraform/`: VPC, ALB, ECS, ECR, RDS, Secrets Manager, S3, IAM |
 
-## Tech stack
+## 🛠️ Tech stack
 
-- Python 3.12, FastAPI, Uvicorn  
-- LangGraph, LangChain  
-- PostgreSQL 16 + pgvector  
-- Docker Compose (API, Postgres, **lims-mock**, Prometheus, Grafana)  
-- Terraform (AWS)
+| Stack | Details |
+| :--- | :--- |
+| 🐍 **Runtime** | Python 3.12 · FastAPI · Uvicorn |
+| 🔗 **AI / orchestration** | LangGraph · LangChain · OpenAI (required) · optional Anthropic vision fallback |
+| 🗄️ **Data** | PostgreSQL 16 · pgvector · async SQLAlchemy |
+| 📦 **Local ops** | Docker Compose — API, Postgres, **lims-mock**, Prometheus, Grafana |
+| ☁️ **Cloud** | Terraform on AWS (Fargate, RDS, ALB, S3, Secrets Manager) |
 
-## Repository layout
+## 📁 Repository layout
 
 ```text
 the-rcm-guardian/
@@ -219,28 +262,28 @@ the-rcm-guardian/
 
 Python imports use the package name **`rcm_guardian`** (underscores).
 
-## Quick reference
+## ⚡ Quick reference
 
-### Docker Compose
+### 🐳 Docker Compose
 
 ```bash
 docker compose up --build
 ```
 
-| Endpoint | URL |
-|----------|-----|
-| API | http://localhost:8000 (`/docs` OpenAPI; `/metrics` for Prometheus) |
-| LIMS mock | http://localhost:8081/docs |
-| Prometheus | http://localhost:9090 |
-| Grafana | http://localhost:3000 (default login `admin` / `admin` — change in production) |
-| Postgres | `localhost:5432` — db `rcm_guardian`, user/password `rcm` |
-| Upload volume | `./uploads` → `/uploads` in `api` |
+| | Endpoint | URL |
+| :---: | --- | --- |
+| 🚀 | **API** | http://localhost:8000 (`/docs` OpenAPI; `/metrics` for Prometheus) |
+| 🏥 | **LIMS mock** | http://localhost:8081/docs |
+| 📈 | **Prometheus** | http://localhost:9090 |
+| 📊 | **Grafana** | http://localhost:3000 (default login `admin` / `admin` — change in production) |
+| 🗄️ | **Postgres** | `localhost:5432` — db `rcm_guardian`, user/password `rcm` |
+| 📂 | **Upload volume** | `./uploads` → `/uploads` in `api` |
 
 Compose provisions the **Prometheus** datasource (UID `prometheus`), scrapes **`http://api:8000/metrics`**, and loads **`dashboards/grafana-denial-forecasting.json`**. **`LIMS_BASE_URL`** defaults to **`http://lims-mock:8080`** inside Compose unless you set it in **`.env`**. **`LANGCHAIN_API_KEY`** must be set for the API container (see **`.env.example`**).
 
 Do not commit **`.env`**.
 
-### Local Python only
+### 🐍 Local Python only
 
 1. Postgres with pgvector running  
 2. `pip install -r requirements.txt`  
@@ -259,7 +302,7 @@ uvicorn rcm_guardian.app:app --reload --host 0.0.0.0 --port 8000
 
 Optional: **`ANTHROPIC_API_KEY`** for vision fallback.
 
-## Configuration
+## 🔧 Configuration
 
 Copy **`.env.example`** to **`.env`** and fill required values. The template is grouped in this order for easier maintenance: **OpenAI** (key + all `OPENAI_*`), **Anthropic** (`ANTHROPIC_*`), **LangSmith** (`LANGCHAIN_*`), **LIMS**, optional **database / uploads**, then **AWS** (`DOCUMENTS_S3_BUCKET`). Compose automatically loads **`.env`** next to **`docker-compose.yml`**.
 
@@ -282,21 +325,21 @@ Copy **`.env.example`** to **`.env`** and fill required values. The template is 
 | `LANGCHAIN_PROJECT` | `rcm-guardian` | LangSmith project name |
 | `LANGCHAIN_ENDPOINT` | `https://api.smith.langchain.com` | LangSmith API base URL (e.g. EU region if required) |
 
-## LangGraph state (`RCMGraphState`)
+## 🔀 LangGraph state (`RCMGraphState`)
 
 Field definitions and HITL semantics are documented in **`rcm_guardian/state.py`**. **`audit_report`** includes structured findings and **`prior_authorization_reconciliation`**. Checkpoints are stored in **PostgreSQL** via **`AsyncPostgresSaver`**, keyed by **`configurable.thread_id`**.
 
-## HTTP API
+## 🌍 HTTP API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Liveness |
-| `GET` | `/metrics` | Prometheus text exposition |
-| `POST` | `/v1/process` | Submit document; `200` completed or `202` human review |
-| `POST` | `/v1/resume` | Resume interrupted graph with `Command(resume=...)` |
-| `GET` | `/v1/ready` | Readiness: DB + seed status; returns `ai_models`, LangSmith config flags (no secrets), LIMS URL, uploads paths |
+| | Method | Path | Description |
+| :---: | --- | --- | --- |
+| 💓 | `GET` | `/health` | Liveness |
+| 📈 | `GET` | `/metrics` | Prometheus text exposition |
+| 📄 | `POST` | `/v1/process` | Submit document; `200` completed or `202` human review |
+| ▶️ | `POST` | `/v1/resume` | Resume interrupted graph with `Command(resume=...)` |
+| ✅ | `GET` | `/v1/ready` | Readiness: DB + seed status; returns `ai_models`, LangSmith config flags (no secrets), LIMS URL, uploads paths |
 
-## Testing
+## 🧪 Testing
 
 ```bash
 pytest -q
@@ -308,7 +351,7 @@ pytest tests/test_complete_flow_fixtures.py -v
 - **`test_complete_flow_fixtures.py`**: Full graph path with patched vision/embeddings, fixture payer rules, and **in-process LIMS mock** (`MemorySaver`).
 - **`test_eob_processing.py`**: Patches LIMS HTTP for Postgres e2e; skips if DB unavailable; use **`RUN_OPENAI_INTEGRATION=1`** for live OpenAI.
 
-## Terraform (AWS)
+## ☁️ Terraform (AWS)
 
 Resources under **`terraform/`** include VPC, ALB, ECS Fargate, ECR, RDS, Secrets Manager, S3, IAM, and CloudWatch logs. Apply only in accounts you control.
 
@@ -321,7 +364,7 @@ terraform apply
 
 ECS tasks should use a task role scoped to the documents bucket and load database/API secrets from Secrets Manager rather than environment literals in task definitions for production. Set **`langsmith_api_secret_arn`** in `terraform.tfvars` so **`LANGCHAIN_API_KEY`** is injected (**required**). Optional **`lims_base_url`** sets **`LIMS_BASE_URL`**.
 
-## Security
+## 🔒 Security
 
 - Treat billing and PHI-adjacent payloads as sensitive; operational compliance (e.g. HIPAA) is an organizational control beyond this repository.
 - Do not commit **`.env`** or credentials; use **AWS Secrets Manager** (or equivalent) in deployed environments and inject at runtime (see **`langsmith_api_secret_arn`** and related task definitions under **`terraform/`**).
@@ -329,7 +372,7 @@ ECS tasks should use a task role scoped to the documents bucket and load databas
 - **API surface:** this service does **not** ship API keys or OAuth for callers. Put it behind an authenticated gateway, private network, or mTLS as your threat model requires; terminate TLS at the load balancer in AWS.
 - **Compose-only tools:** Prometheus and Grafana default credentials (`admin` / `admin`) and open ports are for **local development** only—do not expose them on the public internet without hardening (secrets, TLS, auth, allowlists).
 
-## Production checklist
+## ✅ Production checklist
 
 Use this as a pre-go-live pass; adapt to your org’s policies.
 
@@ -343,12 +386,12 @@ Use this as a pre-go-live pass; adapt to your org’s policies.
 | **Readiness** | Load balancers and orchestrators can use **`GET /v1/ready`** for dependency checks; **`GET /health`** for simple liveness only. |
 | **Dependencies** | Lock container image tags and rebuild on CVE notices; keep Postgres major version aligned with RDS. |
 
-## Observability
+## 📊 Observability
 
 - **Grafana + Prometheus (local Compose):** after `docker compose up`, open Grafana at [http://localhost:3000](http://localhost:3000) (default `admin` / `admin`). Prometheus: [http://localhost:9090](http://localhost:9090). Targets include **`rcm-guardian-api`** scraping **`/metrics`** from the FastAPI container; panels use `rcm_auditor_confidence`, `rcm_finding_total`, `rcm_route_human_review_total`, and `rcm_graph_duration_seconds`.
 - **LangSmith:** **`LANGCHAIN_API_KEY`** and **`LANGCHAIN_TRACING_V2=true`** are **required** in `.env` (validated at startup). Traces go to the live LangSmith API. `/v1/ready` reports LangSmith configuration flags.
 - **`rcm_guardian/app.py`:** comments note OpenTelemetry/Sentry hooks for production.
 
-## License
+## 📄 License
 
 This repository does not include a `LICENSE` file. Add one (e.g. proprietary notice or OSS license) before publishing or open-sourcing the project.

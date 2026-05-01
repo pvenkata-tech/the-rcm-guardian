@@ -1,4 +1,4 @@
-# RCM Guardian — production prototype dependencies
+# RCM Guardian — application dependencies
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 
