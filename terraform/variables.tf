@@ -106,6 +106,12 @@ variable "openai_embedding_model" {
   default     = "text-embedding-3-small"
 }
 
+variable "openai_embedding_dimensions" {
+  type        = number
+  description = "Vector dimension for pgvector (must match embedding model output, e.g. 1536 for text-embedding-3-small)."
+  default     = 1536
+}
+
 variable "anthropic_api_secret_arn" {
   type        = string
   description = "Optional Secrets Manager secret ARN for ANTHROPIC_API_KEY (vision fallback)."
@@ -122,6 +128,24 @@ variable "anthropic_vision_model" {
   type        = string
   description = "Anthropic Claude model when using vision fallback."
   default     = "claude-3-5-sonnet-20241022"
+}
+
+variable "lims_base_url" {
+  type        = string
+  description = "HTTP base URL for the LIMS prior-authorization API (POST /v1/prior-authorizations). Required at runtime — leave empty only for placeholders."
+  default     = ""
+}
+
+variable "langsmith_api_secret_arn" {
+  type        = string
+  description = "Secrets Manager secret ARN for LANGCHAIN_API_KEY (required — LangSmith tracing is mandatory)."
+  default     = ""
+}
+
+variable "langsmith_api_secret_json_key" {
+  type        = string
+  description = "If the LangSmith secret is JSON, the key containing the API key string."
+  default     = ""
 }
 
 variable "certificate_arn" {

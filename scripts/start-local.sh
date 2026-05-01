@@ -8,7 +8,7 @@ mkdir -p "$ROOT/uploads"
 ENV_FILE="$ROOT/.env"
 if [[ ! -f "$ENV_FILE" ]]; then
   cp "$ROOT/.env.example" "$ENV_FILE"
-  echo "Created .env from .env.example — set OPENAI_API_KEY (optional ANTHROPIC_API_KEY for vision fallback)."
+  echo "Created .env from .env.example — set OPENAI_API_KEY and LANGCHAIN_API_KEY (LangSmith is required). Optional: ANTHROPIC for vision fallback."
 fi
 
 has_key=false
@@ -22,5 +22,16 @@ if [[ "$has_key" != true ]]; then
   exit 1
 fi
 
-echo "Starting stack (Postgres + pgvector, LIMS mock, API)..."
+ls_key=false
+[[ -n "${LANGCHAIN_API_KEY:-}" ]] && ls_key=true
+if grep -qE '^[[:space:]]*LANGCHAIN_API_KEY[[:space:]]*=[[:space:]]*[^[:space:]]' "$ENV_FILE" 2>/dev/null; then
+  ls_key=true
+fi
+
+if [[ "$ls_key" != true ]]; then
+  echo "ERROR: Set LANGCHAIN_API_KEY in .env — LangSmith tracing is required (see .env.example)." >&2
+  exit 1
+fi
+
+echo "Starting stack (Postgres, LIMS mock, API, Prometheus, Grafana)..."
 docker compose up --build

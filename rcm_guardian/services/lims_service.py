@@ -1,4 +1,4 @@
-"""LabVantage-style LIMS integration — in-process mock or HTTP mock container."""
+"""LabVantage-style LIMS — in-process mock or HTTP mock container / real URL when set."""
 
 from __future__ import annotations
 
@@ -8,6 +8,10 @@ from typing import Any
 import httpx
 
 from rcm_guardian.config import Settings, get_settings
+
+
+class LIMSIntegrationError(RuntimeError):
+    """Raised when a configured LIMS HTTP URL fails (real or mock container)."""
 
 
 async def _fetch_prior_authorizations_inline(
@@ -48,7 +52,7 @@ async def _fetch_prior_authorizations_http(
         "cpt_codes": cpt_codes,
         "payer_hint": payer_hint,
     }
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(url, json=payload)
         response.raise_for_status()
         data = response.json()
@@ -65,12 +69,11 @@ async def fetch_prior_authorizations(
     settings: Settings | None = None,
 ) -> dict[str, Any]:
     """
-    Prior authorization / clinical sample reconciliation facade.
+    Prior authorization facade.
 
-    - Docker (recommended demo): set `LIMS_BASE_URL` so the forensic auditor hits the `lims-mock` container.
-    - Offline tests / CI: leave `LIMS_BASE_URL` empty to use the deterministic in-process mock.
-
-    Pass ``settings`` when calling from LangGraph so configuration matches the compiled graph (avoids a fresh `get_settings()` lookup).
+    - Leave ``LIMS_BASE_URL`` empty: deterministic in-process mock (tests / offline).
+    - Docker Compose: ``http://lims-mock:8080`` → ``docker/lims-mock`` (HTTP mock).
+    - Production: set ``LIMS_BASE_URL`` to a real LIMS that exposes the same JSON contract.
     """
     s = settings if settings is not None else get_settings()
     base = (s.lims_base_url or "").strip()
@@ -84,15 +87,6 @@ async def fetch_prior_authorizations(
                 payer_hint=payer_hint,
             )
         except (httpx.HTTPError, TypeError, ValueError) as exc:
-            return {
-                "lims_system": "LabVantage (HTTP mock — error)",
-                "patient_id": patient_id,
-                "payer_hint": payer_hint,
-                "prior_auth_document_ids": [],
-                "cpt_with_documented_auth": [],
-                "cpt_without_documented_auth": list(cpt_codes),
-                "raw_rows_returned": 0,
-                "error": str(exc),
-            }
+            raise LIMSIntegrationError(f"LIMS request failed: {exc}") from exc
 
     return await _fetch_prior_authorizations_inline(patient_id, cpt_codes, payer_hint=payer_hint)

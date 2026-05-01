@@ -1,10 +1,12 @@
 """
 End-to-end LangGraph flow with:
-- Mock EOB payload (fixture JSON + patched vision + patched embeddings)
-- Mock payer rules (fixture JSON via FakeRAG — no Postgres / pgvector)
+- Sample EOB payload from JSON fixtures (vision + embeddings patched)
+- In-memory payer rules via FakeRAG (no Postgres / pgvector)
+- In-process **LIMS mock** when `lims_base_url` is empty (`MemorySaver` checkpointer in these tests)
 
 Run:
-    pytest tests/test_complete_flow_mocked.py -v
+
+    pytest tests/test_complete_flow_fixtures.py -v
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from langgraph.checkpoint.memory import MemorySaver
 
 from rcm_guardian.config import Settings
 from rcm_guardian.graph import Command, compile_rcm_graph
@@ -34,7 +37,7 @@ def _load_json(name: str) -> Any:
 
 
 class FakeRAG:
-    """Returns canned payer rules without Postgres (maps to JSON fixtures)."""
+    """Fixture-backed payer rules without Postgres."""
 
     def __init__(self, rules: list[dict[str, Any]]) -> None:
         self._rules = rules
@@ -57,28 +60,28 @@ class FakeRAG:
 
 
 @pytest.fixture
-def mock_eob() -> dict[str, Any]:
-    return _load_json("mock_eob.json")
+def sample_eob() -> dict[str, Any]:
+    return _load_json("sample_eob.json")
 
 
 @pytest.fixture
-def mock_payer_rules() -> list[dict[str, Any]]:
-    data = _load_json("mock_payer_rules.json")
+def sample_payer_rules() -> list[dict[str, Any]]:
+    data = _load_json("sample_payer_rules.json")
     assert isinstance(data, list)
     return data
 
 
 @pytest.mark.asyncio
-async def test_complete_flow_extract_oracle_audit_hitl_with_mock_eob_and_json_rules(
+async def test_complete_flow_hitl_path_with_fixture_eob_and_rules(
     monkeypatch: pytest.MonkeyPatch,
-    mock_eob: dict[str, Any],
-    mock_payer_rules: list[dict[str, Any]],
+    sample_eob: dict[str, Any],
+    sample_payer_rules: list[dict[str, Any]],
 ) -> None:
-    extracted = mock_eob["extracted_billing_data"]
+    extracted = sample_eob["extracted_billing_data"]
 
     async def fake_extract(_settings: Settings, media_type: str, document_b64: str) -> tuple[str, dict[str, Any]]:
         del media_type, document_b64
-        raw = f"[fixture_mock_eob]{mock_eob.get('scenario', '')}\n"
+        raw = f"[fixture_sample_eob]{sample_eob.get('scenario', '')}\n"
         return raw, dict(extracted)
 
     monkeypatch.setattr("rcm_guardian.agents.vision_extract.run_vision_extractor", fake_extract)
@@ -88,14 +91,15 @@ async def test_complete_flow_extract_oracle_audit_hitl_with_mock_eob_and_json_ru
         openai_api_key="sk-test-local-graph-flow",
         database_url="postgresql+asyncpg://unused:unused@127.0.0.1:5432/unused",
         lims_base_url="",
+        langchain_api_key="lsv2_pt_test_fixture_langsmith",
     )
-    graph = compile_rcm_graph(settings, FakeRAG(mock_payer_rules))
+    graph = compile_rcm_graph(settings, FakeRAG(sample_payer_rules), MemorySaver())
 
     thread_id = str(uuid.uuid4())
     cfg: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
     initial = {
-        "document_base64": mock_eob["document_base64"],
-        "document_media_type": mock_eob["document_media_type"],
+        "document_base64": sample_eob["document_base64"],
+        "document_media_type": sample_eob["document_media_type"],
         "thread_id": thread_id,
     }
 
@@ -105,7 +109,7 @@ async def test_complete_flow_extract_oracle_audit_hitl_with_mock_eob_and_json_ru
     snap = await graph.aget_state(cfg)
     vals = dict(snap.values or {})
     assert vals.get("extracted_billing_data") == extracted
-    assert len(vals.get("payer_rules") or []) == len(mock_payer_rules)
+    assert len(vals.get("payer_rules") or []) == len(sample_payer_rules)
 
     audit = vals.get("audit_report") or {}
     assert float(audit.get("confidence", 1.0)) < 0.85
@@ -126,10 +130,10 @@ async def test_complete_flow_extract_oracle_audit_hitl_with_mock_eob_and_json_ru
 @pytest.mark.asyncio
 async def test_complete_flow_no_hitl_when_rules_relaxed(
     monkeypatch: pytest.MonkeyPatch,
-    mock_eob: dict[str, Any],
+    sample_eob: dict[str, Any],
 ) -> None:
     extracted = {
-        **mock_eob["extracted_billing_data"],
+        **sample_eob["extracted_billing_data"],
         "cpt_codes": ["99213"],
     }
 
@@ -142,7 +146,7 @@ async def test_complete_flow_no_hitl_when_rules_relaxed(
 
     relaxed_rules = [
         {
-            "payer_name": "Mock Payor",
+            "payer_name": "Fixture Payor",
             "rule_key": "fixture-office-visits",
             "cpt_codes": ["99213"],
             "body": "Office visit coding guidelines.",
@@ -155,14 +159,15 @@ async def test_complete_flow_no_hitl_when_rules_relaxed(
         openai_api_key="sk-test-local-graph-flow",
         database_url="postgresql+asyncpg://unused:unused@127.0.0.1:5432/unused",
         lims_base_url="",
+        langchain_api_key="lsv2_pt_test_fixture_langsmith",
     )
-    graph = compile_rcm_graph(settings, FakeRAG(relaxed_rules))
+    graph = compile_rcm_graph(settings, FakeRAG(relaxed_rules), MemorySaver())
 
     thread_id = str(uuid.uuid4())
     cfg = {"configurable": {"thread_id": thread_id}}
     initial = {
-        "document_base64": mock_eob["document_base64"],
-        "document_media_type": mock_eob["document_media_type"],
+        "document_base64": sample_eob["document_base64"],
+        "document_media_type": sample_eob["document_media_type"],
         "thread_id": thread_id,
     }
 

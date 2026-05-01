@@ -1,8 +1,8 @@
 """
 LangGraph checkpoint state for RCM Guardian.
 
-Each ``ainvoke`` / resume updates this TypedDict-shaped object; MemorySaver (or PostgresSaver)
-persists it keyed by ``configurable.thread_id`` so workflows survive restarts and human review queues.
+Each ``ainvoke`` / resume updates this TypedDict-shaped object; checkpoints persist in PostgreSQL
+(``AsyncPostgresSaver``) keyed by ``configurable.thread_id`` so workflows survive restarts and human review queues.
 """
 
 from typing import Any, NotRequired, TypedDict

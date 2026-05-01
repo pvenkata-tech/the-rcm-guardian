@@ -59,7 +59,8 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
       Resource = compact([
         aws_secretsmanager_secret.database_url.arn,
         var.openai_api_secret_arn != "" ? var.openai_api_secret_arn : "",
-        var.anthropic_api_secret_arn != "" ? var.anthropic_api_secret_arn : ""
+        var.anthropic_api_secret_arn != "" ? var.anthropic_api_secret_arn : "",
+        var.langsmith_api_secret_arn != "" ? var.langsmith_api_secret_arn : ""
       ])
     }]
   })
@@ -103,6 +104,12 @@ locals {
         name      = "ANTHROPIC_API_KEY"
         valueFrom = local.anthropic_secret_parts
       }
+    ] : [],
+    var.langsmith_api_secret_arn != "" ? [
+      {
+        name      = "LANGCHAIN_API_KEY"
+        valueFrom = local.langsmith_secret_parts
+      }
     ] : []
   )
 
@@ -112,8 +119,13 @@ locals {
       { name = "DOCUMENTS_S3_BUCKET", value = aws_s3_bucket.documents.id },
       { name = "OPENAI_VISION_MODEL", value = var.openai_vision_model },
       { name = "OPENAI_EMBEDDING_MODEL", value = var.openai_embedding_model },
+      { name = "OPENAI_EMBEDDING_DIMENSIONS", value = tostring(var.openai_embedding_dimensions) },
       { name = "ANTHROPIC_VISION_MODEL", value = var.anthropic_vision_model },
-    ]
+      { name = "LANGCHAIN_TRACING_V2", value = "true" },
+      { name = "LANGCHAIN_ENDPOINT", value = "https://api.smith.langchain.com" },
+      { name = "LANGCHAIN_PROJECT", value = var.project_name },
+    ],
+    var.lims_base_url != "" ? [{ name = "LIMS_BASE_URL", value = var.lims_base_url }] : []
   )
 }
 

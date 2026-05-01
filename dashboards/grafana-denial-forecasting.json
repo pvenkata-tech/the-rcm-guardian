@@ -1,14 +1,4 @@
 {
-  "__inputs": [
-    {
-      "name": "DS_PROMETHEUS",
-      "label": "Prometheus",
-      "description": "Wire OTLP → Prometheus or Grafana Cloud after OTEL metrics export.",
-      "type": "datasource",
-      "pluginId": "prometheus",
-      "pluginName": "Prometheus"
-    }
-  ],
   "annotations": {
     "list": [
       {
@@ -33,14 +23,14 @@
       "gridPos": {"h": 5, "w": 24, "x": 0, "y": 0},
       "id": 1,
       "options": {
-        "content": "### RCM Guardian — Denial forecasting (template)\n\nInstrument FastAPI and LangGraph with OpenTelemetry: expose histograms (e.g. `rcm.auditor.confidence`), counters for `rcm.findings` labeled by `finding_kind` (e.g. `PRIOR_AUTH_GAP`), and route-level latency. Map OTLP metrics to Prometheus recording rules, then replace the placeholder queries in this dashboard.\n\n**Panels:** auditor confidence trend, prior-auth gap and HITL rates, 24h PA-gap counts, mean confidence, and graph node latency (examples only until metrics exist).",
+        "content": "### RCM Guardian — Denial forecasting\n\nMetrics are emitted by the API at **`/metrics`** (Prometheus scrapes `rcm-guardian-api`). Histogram **`rcm_auditor_confidence`** records post-audit scores; **`rcm_finding_total`** counts structured findings (`finding_kind`, `status`); **`rcm_route_human_review_total`** counts HITL interrupts; **`rcm_graph_duration_seconds`** times LangGraph nodes (`node` label).\n\nRun documents through **`POST /v1/process`** to populate series.",
         "mode": "markdown"
       },
       "title": "How to use this dashboard",
       "type": "text"
     },
     {
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "fieldConfig": {
         "defaults": {"unit": "percentunit", "min": 0, "max": 1},
         "overrides": []
@@ -50,8 +40,8 @@
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
       "targets": [
         {
-          "expr": "avg(rcm_auditor_confidence_bucket)",
-          "legendFormat": "Auditor confidence (placeholder)",
+          "expr": "sum(rate(rcm_auditor_confidence_sum[5m])) / sum(rate(rcm_auditor_confidence_count[5m]))",
+          "legendFormat": "Mean auditor confidence",
           "refId": "A"
         }
       ],
@@ -59,7 +49,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "fieldConfig": {
         "defaults": {"unit": "short", "color": {"mode": "palette-classic"}},
         "overrides": []
@@ -83,7 +73,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "fieldConfig": {
         "defaults": {"unit": "short"},
         "overrides": []
@@ -101,14 +91,14 @@
       "type": "stat"
     },
     {
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}},
       "gridPos": {"h": 6, "w": 8, "x": 8, "y": 13},
       "id": 5,
       "options": {"reduceOptions": {"calcs": ["mean"]}},
       "targets": [
         {
-          "expr": "avg(rcm_auditor_confidence)",
+          "expr": "sum(rate(rcm_auditor_confidence_sum[5m])) / sum(rate(rcm_auditor_confidence_count[5m]))",
           "refId": "A"
         }
       ],
@@ -116,7 +106,7 @@
       "type": "stat"
     },
     {
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "fieldConfig": {"defaults": {"unit": "s"}},
       "gridPos": {"h": 6, "w": 8, "x": 16, "y": 13},
       "id": 6,
@@ -127,13 +117,13 @@
           "refId": "A"
         }
       ],
-      "title": "p95 graph node latency (placeholder)",
+      "title": "p95 graph node latency",
       "type": "stat"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
-  "tags": ["rcm-guardian", "denial-forecasting", "otel-ready"],
+  "tags": ["rcm-guardian", "denial-forecasting", "prometheus"],
   "templating": {"list": []},
   "time": {"from": "now-7d", "to": "now"},
   "timepicker": {},

@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 # --- OpenTelemetry placeholder -------------------------------------------------
 # Production wiring typically enables:
@@ -22,14 +22,16 @@ from fastapi.responses import JSONResponse
 # trace.set_tracer_provider(provider)
 
 from rcm_guardian.bootstrap import seed_payer_rules_if_empty
-from rcm_guardian.config import get_settings
-from rcm_guardian.graph import Command, compile_rcm_graph
+from rcm_guardian.config import apply_langsmith_env, get_settings
+from rcm_guardian.graph import Command, create_rcm_graph_with_postgres
+from rcm_guardian.metrics import metrics_response
 from rcm_guardian.models.schemas import (
     HumanResumeRequest,
     HumanReviewAcceptedResponse,
     ProcessDocumentRequest,
     ProcessDocumentResponse,
 )
+from rcm_guardian.services.lims_service import LIMSIntegrationError
 from rcm_guardian.services.rag_service import dispose_engine, get_rag
 from rcm_guardian.services.storage_service import maybe_persist_inbound_document
 
@@ -48,12 +50,16 @@ def _snapshot(values: dict[str, Any], thread_id: str) -> ProcessDocumentResponse
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    apply_langsmith_env(settings)
     rag = await get_rag(settings)
     await seed_payer_rules_if_empty(settings, rag)
     app.state.settings = settings
     app.state.rag = rag
-    app.state.graph = compile_rcm_graph(settings, rag)
+    graph, pool = await create_rcm_graph_with_postgres(settings, rag)
+    app.state.graph = graph
+    app.state.checkpoint_pool = pool
     yield
+    await pool.close()
     await dispose_engine()
 
 
@@ -63,6 +69,13 @@ app = FastAPI(title="RCM Guardian", version="0.1.0", lifespan=lifespan)
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus scrape target (Grafana datasource in Docker Compose)."""
+    body, ctype = metrics_response()
+    return Response(content=body, media_type=ctype)
 
 
 @app.get("/v1/ready")
@@ -86,9 +99,18 @@ async def ready(request: Request):
         "seeded": seeded,
         "openai_configured": bool((settings.openai_api_key or "").strip()),
         "anthropic_vision_fallback_configured": bool((settings.anthropic_api_key or "").strip()),
+        "ai_models": {
+            "openai_vision_model": settings.openai_vision_model,
+            "openai_embedding_model": settings.openai_embedding_model,
+            "openai_embedding_dimensions": settings.openai_embedding_dimensions,
+            "anthropic_vision_model": settings.anthropic_vision_model,
+        },
         "lims_base_url": (settings.lims_base_url or "").strip() or None,
         "persist_uploads": settings.persist_uploads,
         "uploads_dir": settings.uploads_dir,
+        "langsmith_tracing": settings.langchain_tracing_v2,
+        "langsmith_api_key_configured": bool((settings.langchain_api_key or "").strip()),
+        "langsmith_project": settings.langchain_project,
     }
 
 
@@ -109,7 +131,10 @@ async def process_document(request: Request, body: ProcessDocumentRequest):
         "document_media_type": body.document_media_type,
         "thread_id": thread_id,
     }
-    result = await graph.ainvoke(initial, config)
+    try:
+        result = await graph.ainvoke(initial, config)
+    except LIMSIntegrationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     if "__interrupt__" in result:
         intr = result["__interrupt__"][0]
@@ -144,6 +169,8 @@ async def resume_human(request: Request, body: HumanResumeRequest):
     config = {"configurable": {"thread_id": body.thread_id}}
     try:
         await graph.ainvoke(Command(resume=body.human_feedback), config)
+    except LIMSIntegrationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

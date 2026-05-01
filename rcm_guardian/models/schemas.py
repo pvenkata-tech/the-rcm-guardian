@@ -35,7 +35,7 @@ class AuditFinding(BaseModel):
 
 
 class HumanReviewAcceptedResponse(BaseModel):
-    """Workflow paused for human review (LangGraph interrupt + MemorySaver checkpoint)."""
+    """Workflow paused for human review (LangGraph interrupt + Postgres checkpoint)."""
 
     status: Literal["human_review_required"] = "human_review_required"
     thread_id: str

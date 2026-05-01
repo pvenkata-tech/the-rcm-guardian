@@ -13,4 +13,8 @@ locals {
   anthropic_secret_parts = var.anthropic_api_secret_arn != "" ? (
     var.anthropic_api_secret_json_key != "" ? "${var.anthropic_api_secret_arn}:${var.anthropic_api_secret_json_key}::" : var.anthropic_api_secret_arn
   ) : ""
+
+  langsmith_secret_parts = var.langsmith_api_secret_arn != "" ? (
+    var.langsmith_api_secret_json_key != "" ? "${var.langsmith_api_secret_arn}:${var.langsmith_api_secret_json_key}::" : var.langsmith_api_secret_arn
+  ) : ""
 }

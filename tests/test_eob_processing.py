@@ -1,8 +1,9 @@
 """
 End-to-end EOB-style workflow checks:
 
-- LangGraph MemorySaver checkpoint + interrupt/resume (human-in-the-loop)
+- LangGraph checkpoints in Postgres + interrupt/resume (human-in-the-loop)
 - pgvector-backed payer rule retrieval (requires Postgres with `vector` extension)
+- LIMS: in-process mock or HTTP patch (no live LIMS required for these tests)
 
 Default pytest runs stub embeddings + stub vision (no API calls). Set RUN_OPENAI_INTEGRATION=1 to exercise live OpenAI.
 
@@ -34,6 +35,40 @@ from sqlalchemy import text
 MINIMAL_PNG_B64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 )
+
+
+def _default_lims_stub_response(
+    patient_id: str | None, cpt_codes: list[str], *, payer_hint: str | None
+) -> dict[str, Any]:
+    """Synthetic LIMS JSON (no PA on claim CPTs → drives HIGH-risk audit path in seeded rules)."""
+    del payer_hint
+    return {
+        "lims_system": "LabVantage",
+        "patient_id": patient_id,
+        "payer_hint": None,
+        "prior_auth_document_ids": [],
+        "cpt_with_documented_auth": [],
+        "cpt_without_documented_auth": list(cpt_codes),
+        "raw_rows_returned": 0,
+    }
+
+
+@pytest.fixture(autouse=True)
+def _patch_lims_http_for_eob_suite(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_http(
+        base_url: str,
+        patient_id: str | None,
+        cpt_codes: list[str],
+        *,
+        payer_hint: str | None,
+    ) -> dict[str, Any]:
+        del base_url
+        return _default_lims_stub_response(patient_id, cpt_codes, payer_hint=payer_hint)
+
+    monkeypatch.setattr(
+        "rcm_guardian.services.lims_service._fetch_prior_authorizations_http",
+        fake_http,
+    )
 
 
 def _deterministic_embedding(text: str, dim: int = 1536) -> list[float]:
@@ -77,14 +112,43 @@ def _stub_llm_for_tests_without_live_openai(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
 
+
+
 @pytest.mark.asyncio
-async def test_lims_labvantage_mock_contract() -> None:
+async def test_lims_http_success_path_parses_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rcm_guardian.config import Settings
     from rcm_guardian.services.lims_service import fetch_prior_authorizations
 
-    payload = await fetch_prior_authorizations("MEMBER-1", ["99285", "99213"])
-    assert "in-process" in str(payload["lims_system"]).lower()
+    async def fake_http(
+        base_url: str,
+        patient_id: str | None,
+        cpt_codes: list[str],
+        *,
+        payer_hint: str | None,
+    ) -> dict[str, Any]:
+        del base_url, payer_hint
+        return {
+            "lims_system": "LabVantage",
+            "patient_id": patient_id,
+            "prior_auth_document_ids": ["PA-1"],
+            "cpt_with_documented_auth": ["99213"],
+            "cpt_without_documented_auth": ["99285"],
+            "raw_rows_returned": 1,
+        }
+
+    monkeypatch.setattr(
+        "rcm_guardian.services.lims_service._fetch_prior_authorizations_http",
+        fake_http,
+    )
+
+    settings = Settings(
+        openai_api_key="sk-test",
+        lims_base_url="https://lims.example",
+        langchain_api_key="lsv2_pt_test_http_parse",
+    )
+    payload = await fetch_prior_authorizations("MEMBER-1", ["99285", "99213"], settings=settings)
+    assert payload["cpt_with_documented_auth"] == ["99213"]
     assert "99285" in payload["cpt_without_documented_auth"]
-    assert "99213" in payload["cpt_with_documented_auth"]
 
 
 async def _require_postgres_stack() -> tuple[Any, Any]:
@@ -112,11 +176,11 @@ async def _require_postgres_stack() -> tuple[Any, Any]:
 @pytest.mark.asyncio
 async def test_langgraph_eob_pipeline_interrupt_and_resume() -> None:
     from rcm_guardian.config import get_settings
-    from rcm_guardian.graph import Command, compile_rcm_graph
+    from rcm_guardian.graph import Command, create_rcm_graph_with_postgres
     from rcm_guardian.services.rag_service import dispose_engine
 
     settings, rag = await _require_postgres_stack()
-    graph = compile_rcm_graph(settings, rag)
+    graph, pool = await create_rcm_graph_with_postgres(settings, rag)
 
     thread_id = str(uuid.uuid4())
     cfg = {"configurable": {"thread_id": thread_id}}
@@ -140,6 +204,7 @@ async def test_langgraph_eob_pipeline_interrupt_and_resume() -> None:
         findings = audit.get("findings") or []
         assert any(str(f.get("severity")).upper() == "HIGH" for f in findings)
     finally:
+        await pool.close()
         await dispose_engine()
         get_settings.cache_clear()
 
@@ -151,8 +216,6 @@ async def test_fastapi_process_resume_roundtrip() -> None:
 
     await _require_postgres_stack()
 
-    # TestClient runs the app's lifespan on a different asyncio loop than this async test.
-    # Drop the cached engine/settings so FastAPI creates a fresh pool on the correct loop.
     await dispose_engine()
     get_settings.cache_clear()
 
@@ -199,11 +262,13 @@ def _apply_demo_llm_stubs() -> None:
 
 async def _demo_cli() -> None:
     os.environ.setdefault("OPENAI_API_KEY", "sk-local-script-demo-placeholder")
+    os.environ.setdefault("LANGCHAIN_API_KEY", "lsv2_pt_local-demo-placeholder-set-real-key-for-langsmith")
+    os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
     _apply_demo_llm_stubs()
 
     from rcm_guardian.bootstrap import seed_payer_rules_if_empty
     from rcm_guardian.config import get_settings
-    from rcm_guardian.graph import Command, compile_rcm_graph
+    from rcm_guardian.graph import Command, create_rcm_graph_with_postgres
     from rcm_guardian.services.rag_service import dispose_engine, get_rag
 
     get_settings.cache_clear()
@@ -216,24 +281,27 @@ async def _demo_cli() -> None:
         return
 
     await seed_payer_rules_if_empty(settings, rag)
-    graph = compile_rcm_graph(settings, rag)
+    graph, pool = await create_rcm_graph_with_postgres(settings, rag)
 
     thread_id = str(uuid.uuid4())
     cfg = {"configurable": {"thread_id": thread_id}}
-    first = await graph.ainvoke(
-        {
-            "document_base64": MINIMAL_PNG_B64,
-            "document_media_type": "image/png",
-            "thread_id": thread_id,
-        },
-        cfg,
-    )
-    print("[demo] First step keys:", sorted(first.keys()))
-    await graph.ainvoke(Command(resume={"demo": True}), cfg)
-    snap = await graph.aget_state(cfg)
-    print("[demo] Final audit_report confidence:", (snap.values or {}).get("audit_report", {}).get("confidence"))
-    await dispose_engine()
-    get_settings.cache_clear()
+    try:
+        first = await graph.ainvoke(
+            {
+                "document_base64": MINIMAL_PNG_B64,
+                "document_media_type": "image/png",
+                "thread_id": thread_id,
+            },
+            cfg,
+        )
+        print("[demo] First step keys:", sorted(first.keys()))
+        await graph.ainvoke(Command(resume={"demo": True}), cfg)
+        snap = await graph.aget_state(cfg)
+        print("[demo] Final audit_report confidence:", (snap.values or {}).get("audit_report", {}).get("confidence"))
+    finally:
+        await pool.close()
+        await dispose_engine()
+        get_settings.cache_clear()
 
 
 if __name__ == "__main__":

@@ -36,10 +36,9 @@ async def main() -> int:
         print(f"[ensure_local_data] payer_rules rows: {n}")
         print("[ensure_local_data] OK — database is seeded and ready.")
         print(
-            "[ensure_local_data] Demo HIGH-risk path: seeded rules include prior-auth gaps for CPT **99285** (ED E/M) "
-            "and CPT **81479** (molpath). Pair extracted CPTs with a patient id that has **no** PA in LIMS "
-            "(e.g. stub patient **MEMBER-1** + CPT 99285) and inspect ``audit_report.findings`` "
-            "for ``finding_kind: PRIOR_AUTH_GAP`` / ``status: REJECTED``."
+            "[ensure_local_data] Demo HIGH-risk path: seeded rules include prior-auth gaps for CPT **99285** "
+            "(ED E/M) and CPT **81479** (molpath). Ensure your LIMS reflects each patient's PA state when "
+            "testing `PRIOR_AUTH_GAP` findings."
         )
         return 0 if n > 0 else 2
     except Exception as exc:

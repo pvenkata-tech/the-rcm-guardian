@@ -3,6 +3,8 @@
 # aws_region              = "us-east-1"
 # environment             = "dev"
 # openai_api_secret_arn   = "arn:aws:secretsmanager:..." # OPENAI_API_KEY (required for embeddings)
+# langsmith_api_secret_arn = "arn:aws:secretsmanager:..." # LANGCHAIN_API_KEY (required — LangSmith)
 # anthropic_api_secret_arn = "arn:aws:secretsmanager:..." # optional vision fallback
 # ecs_desired_count       = 2
+# lims_base_url           = "https://your-lims.example"  # optional LIMS URL; omit if injected elsewhere
 # certificate_arn         = "" # set to ACM ARN for HTTPS listener

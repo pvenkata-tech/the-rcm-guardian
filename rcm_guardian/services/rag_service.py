@@ -150,6 +150,6 @@ async def dispose_engine() -> None:
 async def get_rag(settings: Settings | None = None) -> PayerRulesRAG:
     s = settings or get_settings()
     engine = get_engine(s)
-    rag = PayerRulesRAG(engine)
+    rag = PayerRulesRAG(engine, embedding_dim=s.openai_embedding_dimensions)
     await rag.ensure_schema()
     return rag

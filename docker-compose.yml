@@ -1,5 +1,5 @@
-# Default stack uses live OpenAI (Vision + embeddings). Create `.env` beside this file — see `.env.example`.
-# Compose substitutes variables from `.env` automatically.
+# Default stack: OpenAI + LangSmith (required) + LIMS mock unless you override LIMS_BASE_URL.
+# Create `.env` beside this file — see `.env.example`.
 
 services:
   postgres:
@@ -30,6 +30,32 @@ services:
       timeout: 5s
       retries: 6
 
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana-oss:11.3.1
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost:3000
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
   api:
     build:
       context: .
@@ -41,10 +67,15 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_VISION_MODEL: ${OPENAI_VISION_MODEL:-gpt-4o}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      OPENAI_EMBEDDING_DIMENSIONS: ${OPENAI_EMBEDDING_DIMENSIONS:-1536}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_VISION_MODEL: ${ANTHROPIC_VISION_MODEL:-claude-3-5-sonnet-20241022}
       OTEL_SERVICE_NAME: rcm-guardian
-      LIMS_BASE_URL: http://lims-mock:8080
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-true}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-rcm-guardian}
+      LANGCHAIN_ENDPOINT: ${LANGCHAIN_ENDPOINT:-https://api.smith.langchain.com}
+      LIMS_BASE_URL: ${LIMS_BASE_URL:-http://lims-mock:8080}
       UPLOADS_DIR: /uploads
       PERSIST_UPLOADS: "true"
     volumes:
