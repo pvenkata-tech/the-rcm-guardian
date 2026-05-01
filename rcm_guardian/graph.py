@@ -18,6 +18,55 @@ from rcm_guardian.services.rag_service import PayerRulesRAG
 from rcm_guardian.state import RCMGraphState
 
 
+def _finding_prior_auth_gap(*, missing_pa: list[str], rule_key: str | None) -> dict[str, Any]:
+    """Structured PA gap — billing for services without a documented auth in LIMS."""
+    cpt_label = ", ".join(missing_pa)
+    reason = (
+        f"CPT code(s) [{cpt_label}] present on the extracted billing line items but "
+        "missing from LIMS Prior Authorization records for this patient — cannot defend medical necessity / auth."
+    )
+    rk = rule_key or "unknown_rule"
+    return {
+        "severity": "HIGH",
+        "finding_kind": "PRIOR_AUTH_GAP",
+        "status": "REJECTED",
+        "reason": reason,
+        "message": (
+            f"**Prior-authorization gap:** {reason} "
+            f"(policy rule `{rk}`). Treat as **high risk of denial** until PA is verified or appealed."
+        ),
+        "rule_reference": rule_key,
+        "cpt_codes": list(missing_pa),
+    }
+
+
+def _finding_npi_gap() -> dict[str, Any]:
+    reason = (
+        "Ordering / billing NPI missing from extraction — payer routing, credentialing, "
+        "and policy-to-provider matching may be unreliable."
+    )
+    return {
+        "severity": "MEDIUM",
+        "finding_kind": "NPI_GAP",
+        "status": "FLAGGED",
+        "reason": reason,
+        "message": f"**Provider identifier gap:** {reason}",
+        "rule_reference": None,
+    }
+
+
+def _finding_no_cpt() -> dict[str, Any]:
+    reason = "No billable CPT / HCPCS codes extracted — cannot reconcile payer rules or LIMS prior auth."
+    return {
+        "severity": "HIGH",
+        "finding_kind": "CPT_EXTRACTION_GAP",
+        "status": "REJECTED",
+        "reason": reason,
+        "message": f"**Extraction failure:** {reason}",
+        "rule_reference": None,
+    }
+
+
 def compile_rcm_graph(settings: Settings, rag: PayerRulesRAG):
     async def extractor(state: RCMGraphState) -> dict[str, Any]:
         b64 = state.get("document_base64") or ""
@@ -47,8 +96,10 @@ def compile_rcm_graph(settings: Settings, rag: PayerRulesRAG):
 
         findings: list[dict[str, Any]] = []
         confidence = 1.0
+        prior_auth_gap_cpts: list[str] = []
 
         extracted_cpt_upper = {str(c).strip().upper(): str(c) for c in cpt_list}
+        documented_in_lims = {str(x).strip().upper() for x in lims.get("cpt_with_documented_auth", [])}
 
         for rule in rules:
             meta = rule.get("metadata") or {}
@@ -69,50 +120,40 @@ def compile_rcm_graph(settings: Settings, rag: PayerRulesRAG):
             )
 
             if requires_pa:
-                documented = {str(x).strip().upper() for x in lims.get("cpt_with_documented_auth", [])}
-                missing_pa = [extracted_cpt_upper[c] for c in overlap if c not in documented]
+                missing_pa = [extracted_cpt_upper[c] for c in overlap if c not in documented_in_lims]
                 if missing_pa:
+                    prior_auth_gap_cpts.extend(missing_pa)
                     findings.append(
-                        {
-                            "severity": "HIGH",
-                            "message": (
-                                'Rule indicates prior authorization requirements for CPT(s) '
-                                f"{missing_pa}, but no matching prior authorization was found in LIMS "
-                                '(LabVantage mock). Flag as **High Risk of Denial**.'
-                            ),
-                            "rule_reference": rule.get("rule_key"),
-                            "cpt_codes": missing_pa,
-                        }
+                        _finding_prior_auth_gap(
+                            missing_pa=missing_pa,
+                            rule_key=str(rule.get("rule_key")) if rule.get("rule_key") else None,
+                        )
                     )
                     confidence -= 0.35
 
         if not extracted.get("npi"):
-            findings.append(
-                {
-                    "severity": "MEDIUM",
-                    "message": "NPI missing from extraction — payer matching may be unreliable.",
-                    "rule_reference": None,
-                }
-            )
+            findings.append(_finding_npi_gap())
             confidence -= 0.08
 
         if not cpt_list:
-            findings.append(
-                {
-                    "severity": "HIGH",
-                    "message": "No CPT / HCPCS codes extracted — cannot validate medical necessity rules.",
-                    "rule_reference": None,
-                }
-            )
+            findings.append(_finding_no_cpt())
             confidence -= 0.25
 
         confidence = max(0.0, min(1.0, float(confidence)))
+
+        pa_gap_unique = sorted(set(prior_auth_gap_cpts), key=lambda x: str(x).upper())
 
         audit_report = {
             "confidence": confidence,
             "findings": findings,
             "lims_snapshot": lims,
             "rules_considered": len(rules),
+            "prior_authorization_reconciliation": {
+                "patient_id": patient_id,
+                "cpts_on_claim": list(cpt_list),
+                "cpts_documented_in_lims": sorted(documented_in_lims),
+                "cpts_flagged_missing_pa": pa_gap_unique,
+            },
         }
         return {"audit_report": audit_report, "is_human_required": False}
 

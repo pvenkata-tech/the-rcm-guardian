@@ -51,6 +51,18 @@ async def seed_payer_rules_if_empty(settings: Settings, rag: PayerRulesRAG) -> N
             ),
             "metadata": {"prior_auth_required": False, "risk_focus": "unbundling"},
         },
+        {
+            "payer_name": "National Payer Plus",
+            "rule_key": "npp-molecular-pathology-prior-auth",
+            "cpt_codes": ["81479"],
+            "body": (
+                "Molecular pathology CPT **81479** (unique genomic sequence analysis) typically requires "
+                "**advance prior authorization** aligned with the clinical order in LIMS. "
+                "Billing without a matching PA record should be flagged as **High Risk of Denial** "
+                "and held for genetic counseling / auth verification workflows."
+            ),
+            "metadata": {"prior_auth_required": True, "risk_focus": "prior_auth_genomics"},
+        },
     ]
 
     for s in samples:

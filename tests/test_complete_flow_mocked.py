@@ -111,7 +111,11 @@ async def test_complete_flow_extract_oracle_audit_hitl_with_mock_eob_and_json_ru
     assert float(audit.get("confidence", 1.0)) < 0.85
     findings = audit.get("findings") or []
     assert any(str(f.get("severity")).upper() == "HIGH" for f in findings)
+    assert any(f.get("finding_kind") == "PRIOR_AUTH_GAP" for f in findings)
+    assert any(f.get("status") == "REJECTED" for f in findings)
     assert any("99285" in str(f.get("cpt_codes", [])) for f in findings)
+    pa_rec = audit.get("prior_authorization_reconciliation") or {}
+    assert "99285" in " ".join(str(x) for x in (pa_rec.get("cpts_flagged_missing_pa") or []))
 
     await graph.ainvoke(Command(resume={"reviewer": "test", "decision": "acknowledged"}), cfg)
     final_snap = await graph.aget_state(cfg)

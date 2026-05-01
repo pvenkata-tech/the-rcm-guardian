@@ -1,0 +1,145 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Wire OTLP → Prometheus or Grafana Cloud after OTEL metrics export.",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "content": "### RCM Guardian — Denial forecasting (template)\n\nInstrument FastAPI and LangGraph with OpenTelemetry: expose histograms (e.g. `rcm.auditor.confidence`), counters for `rcm.findings` labeled by `finding_kind` (e.g. `PRIOR_AUTH_GAP`), and route-level latency. Map OTLP metrics to Prometheus recording rules, then replace the placeholder queries in this dashboard.\n\n**Panels:** auditor confidence trend, prior-auth gap and HITL rates, 24h PA-gap counts, mean confidence, and graph node latency (examples only until metrics exist).",
+        "mode": "markdown"
+      },
+      "title": "How to use this dashboard",
+      "type": "text"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {"unit": "percentunit", "min": 0, "max": 1},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "id": 2,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {
+          "expr": "avg(rcm_auditor_confidence_bucket)",
+          "legendFormat": "Auditor confidence (placeholder)",
+          "refId": "A"
+        }
+      ],
+      "title": "Auditor confidence trend",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {"unit": "short", "color": {"mode": "palette-classic"}},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "id": 3,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {
+          "expr": "sum(rate(rcm_finding_total{finding_kind=\"PRIOR_AUTH_GAP\"}[15m]))",
+          "legendFormat": "Prior-auth gaps / sec",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(rcm_route_human_review_total[15m]))",
+          "legendFormat": "HITL interrupts / sec",
+          "refId": "B"
+        }
+      ],
+      "title": "Denial-risk signals (PA gaps vs HITL)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {"unit": "short"},
+        "overrides": []
+      },
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 13},
+      "id": 4,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {
+          "expr": "sum(increase(rcm_finding_total{finding_kind=\"PRIOR_AUTH_GAP\",status=\"REJECTED\"}[24h]))",
+          "refId": "A"
+        }
+      ],
+      "title": "24h PA-gap findings (REJECTED)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}},
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 13},
+      "id": 5,
+      "options": {"reduceOptions": {"calcs": ["mean"]}},
+      "targets": [
+        {
+          "expr": "avg(rcm_auditor_confidence)",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean confidence (rolling)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 13},
+      "id": 6,
+      "options": {"reduceOptions": {"calcs": ["mean"]}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rcm_graph_duration_seconds_bucket[15m])) by (le, node))",
+          "refId": "A"
+        }
+      ],
+      "title": "p95 graph node latency (placeholder)",
+      "type": "stat"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["rcm-guardian", "denial-forecasting", "otel-ready"],
+  "templating": {"list": []},
+  "time": {"from": "now-7d", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "RCM Guardian — Agent confidence vs denial risk",
+  "uid": "rcm-guardian-denial-forecast",
+  "version": 1,
+  "weekStart": ""
+}
