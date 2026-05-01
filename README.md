@@ -233,6 +233,9 @@ the-rcm-guardian/
 ├── .env.example
 ├── samples/
 │   ├── README.md
+│   ├── assets/
+│   │   ├── ordinal-scenarios.svg
+│   │   └── samples-hub.svg
 │   ├── start-local.ps1
 │   ├── start-local.sh
 │   ├── ensure_local_data.py
