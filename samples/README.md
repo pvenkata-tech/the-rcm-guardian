@@ -10,11 +10,11 @@
 
 <br/>
 
-<img src="assets/samples-hub.svg" width="820" alt="Diagram: samples helpers flow to generated folder and Docker API uploads mount" />
+Vector sources (editable): [`assets/samples-hub.svg`](./assets/samples-hub.svg), [`assets/ordinal-scenarios.svg`](./assets/ordinal-scenarios.svg). **Below:** PNG previews (load reliably on GitHub and in IDEs). After editing an SVG, run **`python samples/render_readme_assets.py`** from the repo root to refresh the PNGs.
 
-<br/>
+![Samples folder flow: helpers → generated → Docker /uploads](./assets/samples-hub.png)
 
-<img src="assets/ordinal-scenarios.svg" width="780" alt="Table graphic: ordinal 01-05 PDF vs PNG scenario names" />
+![Ordinal 01–05 PDF vs PNG scenario names](./assets/ordinal-scenarios.png)
 
 </div>
 
@@ -39,7 +39,8 @@
 | **`ensure_local_data.py`** | Seed payer rules in Postgres without starting the API: `python samples/ensure_local_data.py` (run from **repo root**). |
 | **`generate_synthetic_samples.py`** | Writes five ordinal pairs **`synthetic_eob_01` … `_05`**: **`.pdf` and `.png` are different synthetic documents** (not a PNG export of the PDF), each with its own **`asset_key`**. |
 | **`generated/`** | **Gitignored** PDF/PNG outputs. Compose bind-mounts this directory to **`/uploads`** in the `api` service. |
-| **`assets/`** | **Committed** SVG diagrams used by this README (not patient data). |
+| **`render_readme_assets.py`** | Rasterize `assets/*.svg` → `*.png` for this README (PyMuPDF). |
+| **`assets/`** | **Committed** diagrams: **`*.svg`** (source) + **`*.png`** (README previews; GitHub/IDE-safe). |
 
 Each synthetic file embeds a **stable `asset_key`** line. The generator **requires all 10 outputs to have distinct SHA-256** hashes.
 

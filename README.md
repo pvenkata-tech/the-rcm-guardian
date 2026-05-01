@@ -234,12 +234,15 @@ the-rcm-guardian/
 ├── samples/
 │   ├── README.md
 │   ├── assets/
+│   │   ├── ordinal-scenarios.png
 │   │   ├── ordinal-scenarios.svg
+│   │   ├── samples-hub.png
 │   │   └── samples-hub.svg
 │   ├── start-local.ps1
 │   ├── start-local.sh
 │   ├── ensure_local_data.py
 │   ├── generate_synthetic_samples.py
+│   ├── render_readme_assets.py
 │   └── generated/
 ├── docker/
 │   ├── grafana/
