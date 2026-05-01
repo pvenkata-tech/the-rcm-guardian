@@ -9,17 +9,33 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 
-# --- OpenTelemetry placeholder -------------------------------------------------
-# Production wiring typically enables:
-# - OTEL_RESOURCE_ATTRIBUTES / OTEL_SERVICE_NAME
-# - OTLP exporters (gRPC/HTTP) via OTEL_EXPORTER_OTLP_ENDPOINT
-# - FastAPI auto-instrumentation: opentelemetry-instrumentation-fastapi
-# Example (commented intentionally — avoids mandatory exporter deps in this codebase):
-# from opentelemetry import trace
-# from opentelemetry.sdk.resources import Resource
-# from opentelemetry.sdk.trace import TracerProvider
-# provider = TracerProvider(resource=Resource.create({"service.name": settings.otel_service_name}))
-# trace.set_tracer_provider(provider)
+# --- Observability: OpenTelemetry + Sentry (commented — add deps to enable) ------------
+# Pre-architected hooks for screen-share / prod rollout:
+# - Today: Prometheus scrapes GET /metrics; Grafana dashboards chart denial / audit signals
+#   (e.g. rcm_finding_total, rcm_auditor_confidence, rcm_route_human_review_total).
+# - OpenTelemetry: export traces (and optionally metrics) via OTLP; Grafana or ADOT can
+#   consume the same telemetry story alongside PromQL.
+# - Sentry: capture exceptions and slow transactions (DSN from env).
+#
+# def _init_otel_tracer(service_name: str) -> None:
+#     from opentelemetry import trace
+#     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+#     from opentelemetry.sdk.resources import Resource
+#     from opentelemetry.sdk.trace import TracerProvider
+#     from opentelemetry.sdk.trace.export import BatchSpanProcessor
+#
+#     resource = Resource.create({"service.name": service_name})
+#     provider = TracerProvider(resource=resource)
+#     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+#     trace.set_tracer_provider(provider)
+#
+# # In lifespan, after settings load: _init_otel_tracer(settings.otel_service_name)
+# # tracer = trace.get_tracer(__name__)
+# # with tracer.start_as_current_span("rcm.graph.ainvoke"):
+# #     ...  # slice LangGraph latency by node for Grafana / SLO views
+#
+# # import sentry_sdk
+# # sentry_sdk.init(dsn=os.environ.get("SENTRY_DSN"), traces_sample_rate=0.1)
 
 from rcm_guardian.bootstrap import seed_payer_rules_if_empty
 from rcm_guardian.config import apply_langsmith_env, get_settings

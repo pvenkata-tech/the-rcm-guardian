@@ -51,7 +51,7 @@ The codebase is **built for production-style deployment**: Docker images align w
 
 Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `seed_payer_rules_if_empty`).
 
-1. **Stack** (Postgres + **LIMS mock** + API + Prometheus + Grafana): set **`OPENAI_API_KEY`** and **`LANGCHAIN_API_KEY`** in **`.env`** (LangSmith is **required**; get a key at [smith.langchain.com](https://smith.langchain.com)). **`LANGCHAIN_TRACING_V2`** defaults to **`true`** — do not turn it off. **`scripts/start-local.ps1`** / **`start-local.sh`** check both OpenAI and LangSmith keys.
+1. **Stack** (Postgres + **LIMS mock** + API + Prometheus + Grafana — run from repo root, where **`docker-compose.yml`** and **`requirements.txt`** live): copy **`.env.example`** → **`.env`**, set **`OPENAI_API_KEY`** and **`LANGCHAIN_API_KEY`** in **`.env`** (LangSmith is **required**; get a key at [smith.langchain.com](https://smith.langchain.com)). **`LANGCHAIN_TRACING_V2`** defaults to **`true`** — do not turn it off. **`scripts/start-local.ps1`** / **`start-local.sh`** check both OpenAI and LangSmith keys.
 
    ```bash
    docker compose up --build
@@ -390,7 +390,7 @@ Use this as a pre-go-live pass; adapt to your org’s policies.
 
 - **Grafana + Prometheus (local Compose):** after `docker compose up`, open Grafana at [http://localhost:3000](http://localhost:3000) (default `admin` / `admin`). Prometheus: [http://localhost:9090](http://localhost:9090). Targets include **`rcm-guardian-api`** scraping **`/metrics`** from the FastAPI container; panels use `rcm_auditor_confidence`, `rcm_finding_total`, `rcm_route_human_review_total`, and `rcm_graph_duration_seconds`.
 - **LangSmith:** **`LANGCHAIN_API_KEY`** and **`LANGCHAIN_TRACING_V2=true`** are **required** in `.env` (validated at startup). Traces go to the live LangSmith API. `/v1/ready` reports LangSmith configuration flags.
-- **`rcm_guardian/app.py`:** comments note OpenTelemetry/Sentry hooks for production.
+- **`rcm_guardian/app.py`:** commented **OpenTelemetry** tracer setup (OTLP → collector/Grafana backends) and **Sentry** initialization pattern — enable by adding `opentelemetry-*` / `sentry-sdk` and uncommenting; complements **`GET /metrics`** for denial-rate and audit panels in Grafana.
 
 ## 📄 License
 
