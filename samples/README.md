@@ -1,5 +1,3 @@
-<div align="center">
-
 # Samples
 
 **Local helpers & synthetic documents** for RCM Guardian (no real PHI).
@@ -8,13 +6,9 @@
 [![Docker volume](https://img.shields.io/badge/Docker-generated%E2%86%92_uploads-2496ED?style=flat-square&logo=docker&logoColor=white)](../docker-compose.yml)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 
-<br/>
+![Folder flow: samples helpers, generated/, and Docker volume to uploads](assets/samples-hub.png)
 
-![Folder flow: helpers → generated/ → Docker /uploads](./assets/samples-hub.png)
-
-*Source: [`samples-hub.svg`](./assets/samples-hub.svg). Regenerate PNGs from SVG: **`python samples/render_readme_assets.py`** (repo root).*
-
-</div>
+*Source: [`samples-hub.svg`](assets/samples-hub.svg). Regenerate PNG from SVG (repo root): `python samples/render_readme_assets.py`.*
 
 ---
 
