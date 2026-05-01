@@ -11,9 +11,9 @@ venv/
 .env.*
 !.env.example
 
-# Local document volume (bind-mount analogue of S3); keep folder via uploads/.gitkeep
-uploads/*
-!uploads/.gitkeep
+# Synthetic PDF/PNG outputs (regenerate: python samples/generate_synthetic_samples.py)
+samples/generated/*
+!samples/generated/.gitkeep
 
 # Terraform
 .terraform/

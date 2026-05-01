@@ -79,7 +79,7 @@ services:
       UPLOADS_DIR: /uploads
       PERSIST_UPLOADS: "true"
     volumes:
-      - ./uploads:/uploads
+      - ./samples/generated:/uploads
     depends_on:
       postgres:
         condition: service_healthy

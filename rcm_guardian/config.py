@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # Optional: empty = in-process LIMS mock; Compose uses http://lims-mock:8080; production = real LIMS URL.
     lims_base_url: str = ""
 
-    # Local “object storage”: bind-mount ./uploads → /uploads in Docker (see docker-compose.yml).
+    # Local “object storage”: Compose bind-mounts ./samples/generated → /uploads (see docker-compose.yml).
     uploads_dir: str = "/uploads"
     persist_uploads: bool = False
 

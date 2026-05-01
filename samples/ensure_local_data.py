@@ -7,7 +7,6 @@ import asyncio
 import os
 import sys
 
-# Repo root on PYTHONPATH when run as: python scripts/ensure_local_data.py
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)

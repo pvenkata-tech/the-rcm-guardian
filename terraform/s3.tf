@@ -1,4 +1,4 @@
-# Encrypted private bucket for inbound artifacts & audit payloads (S3 analogue of ./uploads in Docker).
+# Encrypted private bucket for inbound artifacts & audit payloads (S3 analogue of ./samples/generated in Docker).
 # ECS task role receives least-privilege object access — interview narrative: SSE-S3 today, SSE-KMS + VPC endpoints in prod.
 
 resource "aws_s3_bucket" "documents" {

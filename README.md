@@ -51,7 +51,7 @@ The codebase is **built for production-style deployment**: Docker images align w
 
 Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `seed_payer_rules_if_empty`).
 
-1. **Stack** (Postgres + **LIMS mock** + API + Prometheus + Grafana — run from repo root, where **`docker-compose.yml`** and **`requirements.txt`** live): copy **`.env.example`** → **`.env`**, set **`OPENAI_API_KEY`** and **`LANGCHAIN_API_KEY`** in **`.env`** (LangSmith is **required**; get a key at [smith.langchain.com](https://smith.langchain.com)). **`LANGCHAIN_TRACING_V2`** defaults to **`true`** — do not turn it off. **`scripts/start-local.ps1`** / **`start-local.sh`** check both OpenAI and LangSmith keys.
+1. **Stack** (Postgres + **LIMS mock** + API + Prometheus + Grafana — run from repo root, where **`docker-compose.yml`** and **`requirements.txt`** live): copy **`.env.example`** → **`.env`**, set **`OPENAI_API_KEY`** and **`LANGCHAIN_API_KEY`** in **`.env`** (LangSmith is **required**; get a key at [smith.langchain.com](https://smith.langchain.com)). **`LANGCHAIN_TRACING_V2`** defaults to **`true`** — do not turn it off. **`samples/start-local.ps1`** / **`samples/start-local.sh`** check both keys and ensure **`samples/generated/`** exists.
 
    ```bash
    docker compose up --build
@@ -60,7 +60,14 @@ Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `s
    Windows:
 
    ```powershell
-   .\scripts\start-local.ps1
+   .\samples\start-local.ps1
+   ```
+
+   macOS / Linux:
+
+   ```bash
+   chmod +x samples/start-local.sh
+   ./samples/start-local.sh
    ```
 
 2. **Health / readiness**:
@@ -72,12 +79,14 @@ Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `s
    ```bash
    docker compose up -d postgres
    pip install -r requirements.txt
-   python scripts/ensure_local_data.py
+   python samples/ensure_local_data.py
    ```
 
 **Models:** OpenAI is required for embeddings (RAG) and primary vision extraction. If OpenAI vision fails and **`ANTHROPIC_API_KEY`** is set, extraction retries using Claude (`rcm_guardian/agents/vision_extract.py`).
 
 **Tests:** `tests/test_complete_flow_fixtures.py` patches vision and embeddings and uses fixture payer rules (no Postgres). `tests/test_eob_processing.py` stubs LLM calls unless **`RUN_OPENAI_INTEGRATION=1`**.
+
+**Synthetic documents (non-PHI):** Run **`python samples/generate_synthetic_samples.py`** from the repo root. For each **`synthetic_eob_01` … `_05`**, the **`.pdf` and `.png` are different synthetic documents** (distinct text, layout, and `asset_key` — the PNG is **not** a snapshot of the PDF). Outputs go to **`samples/generated/`** (gitignored). Docker Compose mounts that folder at **`/uploads`**. See **`samples/README.md`**. Do not use random internet “EOB samples,” which may contain real PHI or unclear licensing.
 
 ## 🌐 Deployment topology
 
@@ -86,7 +95,7 @@ Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `s
 | Runtime | FastAPI + Uvicorn in `api` service | ECS on Fargate behind ALB |
 | Database | `pgvector/pgvector:pg16` | RDS PostgreSQL (pgvector-capable) |
 | Secrets | `.env` (not committed); `.env.example` template | Secrets Manager (`DATABASE_URL`, OpenAI, LangSmith, optional Anthropic) |
-| Documents | `./uploads` → `/uploads` | Private S3 (`terraform/s3.tf`); SSE-S3 baseline, SSE-KMS optional |
+| Documents | `./samples/generated` → `/uploads` in `api` | Private S3 (`terraform/s3.tf`); SSE-S3 baseline, SSE-KMS optional |
 | LIMS | **`lims-mock`** on host `:8081` (Compose default) or in-process when `LIMS_BASE_URL` is unset | `lims_base_url` Terraform → `LIMS_BASE_URL` for a real system |
 | Metrics / dashboards | Prometheus `:9090`, Grafana `:3000` (local Compose) | Use managed Grafana/Prometheus or ADOT in AWS |
 | Scaling | One task per service | ECS desired count; autoscaling configured separately |
@@ -125,7 +134,7 @@ flowchart TB
         API[FastAPI :8000]
         PG[(Postgres 16 + pgvector)]
         LIMSM[LIMS mock :8081]
-        VOL[(./uploads volume)]
+        VOL[(./samples/generated volume)]
         PRO[Prometheus :9090]
         GRA[Grafana :3000]
     end
@@ -200,7 +209,7 @@ sequenceDiagram
 | 🧠 | **RAG** | OpenAI embeddings + cosine similarity in PostgreSQL/pgvector |
 | ⚖️ | **Auditing** | Rule hits vs CPT/NPI; LIMS reconciliation; structured findings (`finding_kind`, `status`, `reason`) and `prior_authorization_reconciliation` |
 | 🏥 | **LIMS** | **`lims-mock`** container or in-process mock; or real URL via **`LIMS_BASE_URL`** |
-| 💾 | **Artifact storage** | Optional `UPLOADS_DIR` persistence (Compose: `./uploads`) |
+| 💾 | **Artifact storage** | Optional `UPLOADS_DIR` persistence (Compose: `./samples/generated` → `/uploads`) |
 | ♻️ | **Checkpoints** | **`AsyncPostgresSaver`** in the same database as pgvector (multi-instance safe) |
 | 📈 | **Observability** | **`GET /metrics`** (Prometheus); **Grafana** dashboard; **LangSmith** (required, **`LANGCHAIN_*`**); OTLP/Sentry placeholders in `rcm_guardian/app.py` |
 | 🏗️ | **IaC** | `terraform/`: VPC, ALB, ECS, ECR, RDS, Secrets Manager, S3, IAM |
@@ -222,16 +231,18 @@ the-rcm-guardian/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── .env.example
-├── scripts/
+├── samples/
+│   ├── README.md
 │   ├── start-local.ps1
 │   ├── start-local.sh
-│   └── ensure_local_data.py
+│   ├── ensure_local_data.py
+│   ├── generate_synthetic_samples.py
+│   └── generated/
 ├── docker/
 │   ├── grafana/
 │   │   └── provisioning/
 │   ├── prometheus/
 │   └── lims-mock/
-├── uploads/
 ├── dashboards/
 ├── terraform/
 ├── pytest.ini
@@ -277,7 +288,7 @@ docker compose up --build
 | 📈 | **Prometheus** | http://localhost:9090 |
 | 📊 | **Grafana** | http://localhost:3000 (default login `admin` / `admin` — change in production) |
 | 🗄️ | **Postgres** | `localhost:5432` — db `rcm_guardian`, user/password `rcm` |
-| 📂 | **Upload volume** | `./uploads` → `/uploads` in `api` |
+| 📂 | **Artifact volume** | `./samples/generated` → `/uploads` in `api` |
 
 Compose provisions the **Prometheus** datasource (UID `prometheus`), scrapes **`http://api:8000/metrics`**, and loads **`dashboards/grafana-denial-forecasting.json`**. **`LIMS_BASE_URL`** defaults to **`http://lims-mock:8080`** inside Compose unless you set it in **`.env`**. **`LANGCHAIN_API_KEY`** must be set for the API container (see **`.env.example`**).
 

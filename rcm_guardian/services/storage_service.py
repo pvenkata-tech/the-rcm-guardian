@@ -33,7 +33,7 @@ def maybe_persist_inbound_document(
     document_media_type: str,
 ) -> str | None:
     """
-    Write inbound artifact to UPLOADS_DIR (bind-mounted in Docker).
+    Write inbound artifact to UPLOADS_DIR (Compose: bind-mount ./samples/generated → /uploads).
 
     On AWS Fargate, swap this for S3 PutObject using the task IAM role and SSE.
     """

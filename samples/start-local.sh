@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-mkdir -p "$ROOT/uploads"
+mkdir -p "$ROOT/samples/generated"
 
 ENV_FILE="$ROOT/.env"
 if [[ ! -f "$ENV_FILE" ]]; then

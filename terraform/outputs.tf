@@ -22,7 +22,7 @@ output "ecs_service_name" {
 }
 
 output "documents_bucket_name" {
-  description = "Private SSE-S3 bucket for document storage (maps to Docker ./uploads)."
+  description = "Private SSE-S3 bucket for document storage (maps to Docker ./samples/generated)."
   value       = aws_s3_bucket.documents.id
 }
 

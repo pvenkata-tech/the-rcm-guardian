@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
-New-Item -ItemType Directory -Force -Path (Join-Path $Root "uploads") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $Root "samples\generated") | Out-Null
 
 $envPath = Join-Path $Root ".env"
 if (-not (Test-Path $envPath)) {
