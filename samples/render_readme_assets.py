@@ -11,7 +11,7 @@ _ASSETS = _HERE / "assets"
 
 
 def main() -> None:
-    for name in ("samples-hub", "ordinal-scenarios"):
+    for name in ("samples-hub",):
         svg = _ASSETS / f"{name}.svg"
         png = _ASSETS / f"{name}.png"
         doc = fitz.open(svg)

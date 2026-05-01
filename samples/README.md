@@ -10,11 +10,9 @@
 
 <br/>
 
-Vector sources (editable): [`assets/samples-hub.svg`](./assets/samples-hub.svg), [`assets/ordinal-scenarios.svg`](./assets/ordinal-scenarios.svg). **Below:** PNG previews (load reliably on GitHub and in IDEs). After editing an SVG, run **`python samples/render_readme_assets.py`** from the repo root to refresh the PNGs.
+![Folder flow: helpers → generated/ → Docker /uploads](./assets/samples-hub.png)
 
-![Samples folder flow: helpers → generated → Docker /uploads](./assets/samples-hub.png)
-
-![Ordinal 01–05 PDF vs PNG scenario names](./assets/ordinal-scenarios.png)
+*Source: [`samples-hub.svg`](./assets/samples-hub.svg). Regenerate PNGs from SVG: **`python samples/render_readme_assets.py`** (repo root).*
 
 </div>
 
@@ -25,9 +23,8 @@ Vector sources (editable): [`assets/samples-hub.svg`](./assets/samples-hub.svg),
 | | |
 | :--- | :--- |
 | 📂 | [What lives here](#what-lives-here) |
-| 🔢 | [Ordinal reference](#ordinal-reference-generated-synthetic-files) |
+| 🔢 | [Ordinal reference](#ordinal-reference) |
 | ⚡ | [Commands](#commands) |
-| 🔁 | [Data flow (Mermaid)](#data-flow) |
 
 ---
 
@@ -36,22 +33,20 @@ Vector sources (editable): [`assets/samples-hub.svg`](./assets/samples-hub.svg),
 | Path | Purpose |
 |------|---------|
 | **`start-local.ps1`** / **`start-local.sh`** | From **repo root**: checks `.env` for OpenAI + LangSmith keys, ensures **`samples/generated/`** exists, then **`docker compose up --build`**. |
-| **`ensure_local_data.py`** | Seed payer rules in Postgres without starting the API: `python samples/ensure_local_data.py` (run from **repo root**). |
-| **`generate_synthetic_samples.py`** | Writes five ordinal pairs **`synthetic_eob_01` … `_05`**: **`.pdf` and `.png` are different synthetic documents** (not a PNG export of the PDF), each with its own **`asset_key`**. |
-| **`generated/`** | **Gitignored** PDF/PNG outputs. Compose bind-mounts this directory to **`/uploads`** in the `api` service. |
-| **`render_readme_assets.py`** | Rasterize `assets/*.svg` → `*.png` for this README (PyMuPDF). |
-| **`assets/`** | **Committed** diagrams: **`*.svg`** (source) + **`*.png`** (README previews; GitHub/IDE-safe). |
-
-Each synthetic file embeds a **stable `asset_key`** line. The generator **requires all 10 outputs to have distinct SHA-256** hashes.
+| **`ensure_local_data.py`** | Seed payer rules without starting the API: `python samples/ensure_local_data.py` |
+| **`generate_synthetic_samples.py`** | Fills **`generated/`** — see [**Ordinal reference**](#ordinal-reference) and **Commands**. |
+| **`render_readme_assets.py`** | Rasterize **`assets/*.svg` → `*.png`** (PyMuPDF). |
+| **`generated/`** | **Gitignored** outputs; Compose bind-mounts this folder to **`/uploads`** in **`api`**. |
+| **`assets/`** | Diagram **`.svg`** + **`.png`** previews for this README. |
 
 ---
 
-## Ordinal reference (`generated/` synthetic files)
+## Ordinal reference
 
-Each `synthetic_eob_NN.pdf` and `synthetic_eob_NN.png` is a **different** scenario (definitions in **`generate_synthetic_samples.py`**).
+Output paths: **`samples/generated/synthetic_eob_<NN>.pdf`** and **`.png`** for **NN = 01 … 05** (10 files). Each ordinal uses **two different documents** for PDF vs PNG (not a raster of the PDF); text and `asset_key` differ. Source: **`PAIRS`** in [`generate_synthetic_samples.py`](./generate_synthetic_samples.py).
 
-| Ordinal | PDF | PNG |
-|--------|-----|-----|
+| Ordinal | PDF scenario | PNG scenario |
+|--------|-------------|-------------|
 | 01 | EOB / office + lab | Pharmacy remittance |
 | 02 | Urgent care claim summary | PT plan of care |
 | 03 | ASC / surgery | Molecular lab requisition |
@@ -62,26 +57,10 @@ Each `synthetic_eob_NN.pdf` and `synthetic_eob_NN.png` is a **different** scenar
 
 ## Commands
 
-Regenerate synthetic PDFs and PNGs (**repo root**):
-
 ```bash
 python samples/generate_synthetic_samples.py
 ```
 
 ---
 
-## Data flow
-
-```mermaid
-flowchart LR
-  subgraph samples_dir["samples/"]
-    H[Helpers: start-local, ensure_local_data, generate_*]
-    G[generated/]
-  end
-  H -->|generate_synthetic_samples.py| G
-  G -->|docker compose bind-mount| U[/uploads in api container/]
-```
-
----
-
-**Do not** place real PHI in **`generated/`**.
+Do not put real PHI in **`generated/`**.

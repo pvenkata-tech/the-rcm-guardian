@@ -234,8 +234,6 @@ the-rcm-guardian/
 ├── samples/
 │   ├── README.md
 │   ├── assets/
-│   │   ├── ordinal-scenarios.png
-│   │   ├── ordinal-scenarios.svg
 │   │   ├── samples-hub.png
 │   │   └── samples-hub.svg
 │   ├── start-local.ps1
