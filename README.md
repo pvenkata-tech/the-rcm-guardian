@@ -76,8 +76,8 @@ flowchart TB
     end
 
     subgraph Ext["External"]
-        LIMS_API[LIMS prior-auth HTTP — real URL if you override `LIMS_BASE_URL`]
-        LS[LangSmith API — required (`LANGCHAIN_API_KEY`)]
+        LIMS_API[LIMS prior-auth HTTP when LIMS_BASE_URL external]
+        LS[LangSmith LANGCHAIN_API_KEY required]
     end
 
     subgraph Docker_Local["Docker Compose"]
@@ -110,7 +110,7 @@ flowchart TB
     API --> EX
     RO --> PG
     FA -->|default: POST /v1/prior-authorizations| LIMSM
-    FA -.->|if `LIMS_BASE_URL` is external| LIMS_API
+    FA -.->|external LIMS_BASE_URL| LIMS_API
     API --> VOL
     API -.->|same container contract| ECS
 ```
