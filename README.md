@@ -2,12 +2,12 @@
 
 # RCM Guardian
 
-**Multimodal billing intelligence — LangGraph extraction, payer-rule RAG, LIMS reconciliation, Postgres checkpoints, and required LangSmith tracing.**
+**Multimodal billing intelligence — LangGraph extraction, payer-rule RAG, LIMS reconciliation, Postgres checkpoints, and LangSmith tracing (validated at API startup for the default stack).**
 
-[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-111?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16_%2B_pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16_%2B_pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
 [![Docker](https://img.shields.io/badge/Docker_Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 [![Terraform](https://img.shields.io/badge/Terraform-AWS-7B42BC?style=flat-square&logo=terraform&logoColor=white)](https://www.terraform.io/)
 [![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat-square&logo=prometheus&logoColor=white)](https://prometheus.io/)
@@ -23,12 +23,13 @@
 | :--- | :--- |
 | 📋 | [Overview](#overview) |
 | 🚀 | [Run locally](#run-locally) |
+| ⚡ | [Quick reference](#quick-reference) |
+| 🐛 | [Troubleshooting](#troubleshooting) |
 | 🌐 | [Deployment topology](#deployment-topology) |
 | 🏗️ | [Architecture](#architecture) |
 | ✨ | [Features](#features) |
 | 🛠️ | [Tech stack](#tech-stack) |
 | 📁 | [Repository layout](#repository-layout) |
-| ⚡ | [Quick reference](#quick-reference) |
 | 🔧 | [Configuration](#configuration) |
 | 🔀 | [LangGraph state](#langgraph-state-rcmgraphstate) |
 | 🌍 | [HTTP API](#http-api) |
@@ -43,15 +44,15 @@
 
 ## 📋 Overview
 
-RCM Guardian is a FastAPI service that runs a LangGraph workflow over billing documents: multimodal extraction (PDF/image), pgvector-backed retrieval of payer policy rules, forensic auditing with a **mock LIMS** (Docker `lims-mock` or in-process fallback) or a **real LIMS URL** when you set `LIMS_BASE_URL`, Postgres-backed checkpoints, and **LangSmith** tracing to the live LangSmith API.
+RCM Guardian is a FastAPI service that runs a LangGraph workflow over billing documents: multimodal extraction (PDF/image), retrieval of payer policy rules in **PostgreSQL** using the **pgvector** extension, forensic auditing with a **mock LIMS** (HTTP `lims-mock` in Compose or a **deterministic in-process mock** when `LIMS_BASE_URL` is unset — fixed CPT allow-lists, not random data) or a **real LIMS URL** when you set `LIMS_BASE_URL`, Postgres-backed checkpoints, and **LangSmith** tracing to the live LangSmith API.
 
 The codebase is **built for production-style deployment**: Docker images align with an AWS Fargate–style layout defined under `terraform/`. Configure secrets via environment variables locally and via AWS Secrets Manager in deployed environments.
 
 ## 🚀 Run locally
 
-Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `seed_payer_rules_if_empty`).
+Payer rules are seeded at API startup (`lifespan` → `seed_payer_rules_if_empty`). The `payer_rules` table and pgvector column are created idempotently via raw DDL in **`PayerRulesRAG.ensure_schema`** (`rcm_guardian/services/rag_service.py`) — there is **no Alembic** migration chain in this repo (fine for demos and small teams; production orgs usually add versioned migrations).
 
-1. **Stack** (Postgres + **LIMS mock** + API + Prometheus + Grafana — run from repo root, where **`docker-compose.yml`** and **`requirements.txt`** live): copy **`.env.example`** → **`.env`**, set **`OPENAI_API_KEY`** and **`LANGCHAIN_API_KEY`** in **`.env`** (LangSmith is **required**; get a key at [smith.langchain.com](https://smith.langchain.com)). **`LANGCHAIN_TRACING_V2`** defaults to **`true`** — do not turn it off. **`samples/start-local.ps1`** / **`samples/start-local.sh`** check both keys and ensure **`samples/generated/`** exists.
+1. **Stack** (Postgres + **LIMS mock** + API + Prometheus + Grafana — run from repo root, where **`docker-compose.yml`** and **`requirements.txt`** live): copy **`.env.example`** → **`.env`**, set **`OPENAI_API_KEY`** and **`LANGCHAIN_API_KEY`** in **`.env`**. This repository’s **default Compose stack expects LangSmith** (`LANGCHAIN_TRACING_V2=true`); missing keys fail fast at API startup with an explicit **`RuntimeError`** / **`ValidationError`** message (see **`rcm_guardian/config.py`** and **`rcm_guardian/app.py`**). Get a key at [smith.langchain.com](https://smith.langchain.com). **`samples/start-local.ps1`** / **`samples/start-local.sh`** check **`docker`**, **`docker compose`**, both API keys, and ensure **`samples/generated/`** exists. **Service URLs and ports** are in [Quick reference](#quick-reference) below.
 
    ```bash
    docker compose up --build
@@ -88,6 +89,58 @@ Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `s
 
 **Synthetic documents (non-PHI):** Run **`python samples/generate_synthetic_samples.py`** from the repo root. For each **`synthetic_eob_01` … `_05`**, the **`.pdf` and `.png` are different synthetic documents** (distinct text, layout, and `asset_key` — the PNG is **not** a snapshot of the PDF). Outputs go to **`samples/generated/`** (gitignored). Docker Compose mounts that folder at **`/uploads`**. See **`samples/README.md`**. Do not use random internet “EOB samples,” which may contain real PHI or unclear licensing.
 
+## ⚡ Quick reference
+
+### 🐳 Docker Compose
+
+```bash
+docker compose up --build
+```
+
+| | Endpoint | URL |
+| :---: | --- | --- |
+| 🚀 | **API** | http://localhost:8000 (`/docs` OpenAPI; `/metrics` for Prometheus) |
+| 🏥 | **LIMS mock (host)** | http://localhost:8081/docs — see **LIMS ports** below |
+| 📈 | **Prometheus** | http://localhost:9090 |
+| 📊 | **Grafana** | http://localhost:3000 (default login `admin` / `admin` — change in production) |
+| 🗄️ | **Postgres** | `localhost:5432` — db `rcm_guardian`, user/password `rcm` |
+| 📂 | **Artifact volume** | `./samples/generated` → `/uploads` in `api` |
+
+#### LIMS mock: host port vs container port
+
+Compose maps **`8081:8080`**: the FastAPI process **inside** the `lims-mock` container listens on **8080**. Other services on the Docker network (for example `api`) should use **`http://lims-mock:8080`** — this is the Compose default for **`LIMS_BASE_URL`**. **From your laptop browser or curl on the host**, use **`http://localhost:8081`** (published port). Using `localhost:8081` **from inside** a container (or using `lims-mock:8081`) is a common source of **connection refused** errors.
+
+Compose provisions the **Prometheus** datasource (UID `prometheus`), scrapes **`http://api:8000/metrics`**, and loads the dashboard JSON at **`dashboards/grafana-denial-forecasting.json`** (repo path; mounted read-only into Grafana). **`LANGCHAIN_API_KEY`** must be set for the `api` container (see **`.env.example`**).
+
+Do not commit **`.env`**.
+
+### 🐍 Local Python only
+
+1. PostgreSQL 16 with the **pgvector** extension available to your database user  
+2. `pip install -r requirements.txt`  
+3. Optional: **`LIMS_BASE_URL`** — unset uses the **deterministic in-process** mock; if the **`lims-mock`** container is running on the host, use **`http://127.0.0.1:8081`** (host-published port), not `8080`, from processes on the host
+
+```bash
+export OPENAI_API_KEY=sk-...
+export OPENAI_VISION_MODEL=gpt-4o
+export OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+export OPENAI_EMBEDDING_DIMENSIONS=1536
+export LANGCHAIN_API_KEY=lsv2_pt_...   # required for default settings — from LangSmith
+export LANGCHAIN_TRACING_V2=true       # required (default); must not be false
+export DATABASE_URL=postgresql+asyncpg://rcm:rcm@localhost:5432/rcm_guardian
+uvicorn rcm_guardian.app:app --reload --host 0.0.0.0 --port 8000
+```
+
+Optional: **`ANTHROPIC_API_KEY`** for vision fallback.
+
+## 🐛 Troubleshooting
+
+| Symptom | What to check |
+|--------|----------------|
+| **LIMS / prior-auth connection refused** | **Host vs container URLs:** API in Compose uses **`http://lims-mock:8080`**. From the host OS, use **`http://127.0.0.1:8081`**. Do not mix `lims-mock:8081` or in-container `localhost:8081` unless you know the listener is there. |
+| **Files under `./samples/generated` missing inside the container (Windows)** | Enable **file sharing** for the drive in Docker Desktop; prefer **WSL2** backend; avoid paths Docker cannot bind-mount. Line-ending or path issues are common on Windows — keep the repo on a shared drive Docker is allowed to mount. |
+| **API exits on startup with LangSmith / OpenAI errors** | Read the **`RuntimeError`** preamble from **`lifespan`** plus the nested **`ValidationError`**; confirm **`.env`** is beside **`docker-compose.yml`** and that **`LANGCHAIN_TRACING_V2`** is not set to **`false`**. |
+
 ## 🌐 Deployment topology
 
 | Concern | Docker Compose | AWS (`terraform/`) |
@@ -96,11 +149,11 @@ Payer rules and the pgvector schema are loaded at API startup (`lifespan` → `s
 | Database | `pgvector/pgvector:pg16` | RDS PostgreSQL (pgvector-capable) |
 | Secrets | `.env` (not committed); `.env.example` template | Secrets Manager (`DATABASE_URL`, OpenAI, LangSmith, optional Anthropic) |
 | Documents | `./samples/generated` → `/uploads` in `api` | Private S3 (`terraform/s3.tf`); SSE-S3 baseline, SSE-KMS optional |
-| LIMS | **`lims-mock`** on host `:8081` (Compose default) or in-process when `LIMS_BASE_URL` is unset | `lims_base_url` Terraform → `LIMS_BASE_URL` for a real system |
+| LIMS | **Compose `api`:** **`LIMS_BASE_URL`** defaults to **`http://lims-mock:8080`** (Docker DNS, container listens on **8080**; host maps **8081:8080**). **Host tools / browser:** `http://localhost:8081`. **Local `uvicorn` (no Compose):** omit **`LIMS_BASE_URL`** for the in-process deterministic mock, or set **`http://127.0.0.1:8081`** if **`lims-mock`** is running. | `lims_base_url` Terraform → **`LIMS_BASE_URL`** for a real system |
 | Metrics / dashboards | Prometheus `:9090`, Grafana `:3000` (local Compose) | Use managed Grafana/Prometheus or ADOT in AWS |
 | Scaling | One task per service | ECS desired count; autoscaling configured separately |
 
-**`LIMS_BASE_URL`** defaults to **`http://lims-mock:8080`** in Compose. Override in `.env` for a **real** LIMS (same `POST /v1/prior-authorizations` JSON contract). **LangSmith is mandatory:** **`LANGCHAIN_API_KEY`** must be set; **`LANGCHAIN_TRACING_V2`** must remain **`true`** (the app refuses to start otherwise).
+**`LIMS_BASE_URL`** defaults to **`http://lims-mock:8080`** for the **`api`** service in Compose (Docker DNS + internal port **8080**). Override in **`.env`** for a **real** LIMS (same `POST /v1/prior-authorizations` JSON contract). **LangSmith:** for this repo’s **default settings**, **`LANGCHAIN_API_KEY`** must be set and **`LANGCHAIN_TRACING_V2`** must be **`true`** — **`get_settings()`** validates on startup and **`lifespan`** wraps failures in a **`RuntimeError`** with a short checklist (forks that need offline mode must relax **`rcm_guardian/config.py`**).
 
 ## 🏗️ Architecture
 
@@ -127,13 +180,13 @@ flowchart TB
 
     subgraph Ext["External"]
         LIMS_API[LIMS prior-auth HTTP when LIMS_BASE_URL external]
-        LS[LangSmith LANGCHAIN_API_KEY required]
+        LS[LangSmith default stack LANGCHAIN_API_KEY]
     end
 
     subgraph Docker_Local["Docker Compose"]
         API[FastAPI :8000]
         PG[(Postgres 16 + pgvector)]
-        LIMSM[LIMS mock :8081]
+        LIMSM[LIMS mock host :8081 in-container :8080]
         VOL[(./samples/generated volume)]
         PRO[Prometheus :9090]
         GRA[Grafana :3000]
@@ -172,7 +225,7 @@ sequenceDiagram
     participant U as /uploads volume
     participant G as LangGraph
     participant V as Vision LLM
-    participant DB as Postgres/pgvector
+    participant DB as Postgres with pgvector
     participant L as LIMS HTTP service
 
     C->>F: POST /v1/process (base64 doc + thread_id?)
@@ -206,19 +259,25 @@ sequenceDiagram
 | 🔌 | **API** | Async FastAPI; Pydantic request/response models |
 | 🔁 | **Orchestration** | LangGraph graph with conditional routing and `interrupt()` for HITL |
 | 👁️ | **Extraction** | PyMuPDF PDF rasterization + vision model; prompts tuned for tabular billing lines |
-| 🧠 | **RAG** | OpenAI embeddings + cosine similarity in PostgreSQL/pgvector |
+| 🧠 | **RAG** | OpenAI embeddings + cosine similarity in PostgreSQL using the pgvector extension |
 | ⚖️ | **Auditing** | Rule hits vs CPT/NPI; LIMS reconciliation; structured findings (`finding_kind`, `status`, `reason`) and `prior_authorization_reconciliation` |
-| 🏥 | **LIMS** | **`lims-mock`** container or in-process mock; or real URL via **`LIMS_BASE_URL`** |
+| 🏥 | **LIMS** | **`lims-mock`** HTTP service (deterministic **`docker/lims-mock`**) or **in-process** deterministic rules (`lims_service.py`); or real URL via **`LIMS_BASE_URL`** |
 | 💾 | **Artifact storage** | Optional `UPLOADS_DIR` persistence (Compose: `./samples/generated` → `/uploads`) |
 | ♻️ | **Checkpoints** | **`AsyncPostgresSaver`** in the same database as pgvector (multi-instance safe) |
-| 📈 | **Observability** | **`GET /metrics`** (Prometheus); **Grafana** dashboard; **LangSmith** (required, **`LANGCHAIN_*`**); OTLP/Sentry placeholders in `rcm_guardian/app.py` |
+| 📈 | **Observability** | **`GET /metrics`** (Prometheus); **Grafana** loads **`dashboards/grafana-denial-forecasting.json`**; **LangSmith** (**`LANGCHAIN_*`**, validated at startup); OTLP/Sentry placeholders in `rcm_guardian/app.py` |
 | 🏗️ | **IaC** | `terraform/`: VPC, ALB, ECS, ECR, RDS, Secrets Manager, S3, IAM |
+
+**Human-in-the-loop (HITL):**
+
+1. The graph runs extraction and auditing; structured billing data and findings accumulate in graph state.
+2. If auditor confidence is below threshold, the graph calls **`interrupt()`** — state is checkpointed to Postgres and **`POST /v1/process`** returns **202** with an interrupt payload.
+3. The analyst sends **`POST /v1/resume`** with the same **`thread_id`** and **`human_feedback`**; the graph resumes with **`Command(resume=...)`** and returns a completed **200** payload when finished.
 
 ## 🛠️ Tech stack
 
 | Stack | Details |
 | :--- | :--- |
-| 🐍 **Runtime** | Python 3.12 · FastAPI · Uvicorn |
+| 🐍 **Runtime** | **Dockerfile:** `python:3.12-slim` · **Application code:** Python **3.10+** (PEP 604 unions, `from __future__ import annotations`; no 3.12-only syntax required) · FastAPI · Uvicorn |
 | 🔗 **AI / orchestration** | LangGraph · LangChain · OpenAI (required) · optional Anthropic vision fallback |
 | 🗄️ **Data** | PostgreSQL 16 · pgvector · async SQLAlchemy |
 | 📦 **Local ops** | Docker Compose — API, Postgres, **lims-mock**, Prometheus, Grafana |
@@ -277,46 +336,6 @@ the-rcm-guardian/
 
 Python imports use the package name **`rcm_guardian`** (underscores).
 
-## ⚡ Quick reference
-
-### 🐳 Docker Compose
-
-```bash
-docker compose up --build
-```
-
-| | Endpoint | URL |
-| :---: | --- | --- |
-| 🚀 | **API** | http://localhost:8000 (`/docs` OpenAPI; `/metrics` for Prometheus) |
-| 🏥 | **LIMS mock** | http://localhost:8081/docs |
-| 📈 | **Prometheus** | http://localhost:9090 |
-| 📊 | **Grafana** | http://localhost:3000 (default login `admin` / `admin` — change in production) |
-| 🗄️ | **Postgres** | `localhost:5432` — db `rcm_guardian`, user/password `rcm` |
-| 📂 | **Artifact volume** | `./samples/generated` → `/uploads` in `api` |
-
-Compose provisions the **Prometheus** datasource (UID `prometheus`), scrapes **`http://api:8000/metrics`**, and loads **`dashboards/grafana-denial-forecasting.json`**. **`LIMS_BASE_URL`** defaults to **`http://lims-mock:8080`** inside Compose unless you set it in **`.env`**. **`LANGCHAIN_API_KEY`** must be set for the API container (see **`.env.example`**).
-
-Do not commit **`.env`**.
-
-### 🐍 Local Python only
-
-1. Postgres with pgvector running  
-2. `pip install -r requirements.txt`  
-3. Optional: **`LIMS_BASE_URL`** (defaults to in-process mock if unset; use `http://127.0.0.1:8081` if `lims-mock` is running)
-
-```bash
-export OPENAI_API_KEY=sk-...
-export OPENAI_VISION_MODEL=gpt-4o
-export OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-export OPENAI_EMBEDDING_DIMENSIONS=1536
-export LANGCHAIN_API_KEY=lsv2_pt_...   # required — from LangSmith
-export LANGCHAIN_TRACING_V2=true       # required (default); do not set false
-export DATABASE_URL=postgresql+asyncpg://rcm:rcm@localhost:5432/rcm_guardian
-uvicorn rcm_guardian.app:app --reload --host 0.0.0.0 --port 8000
-```
-
-Optional: **`ANTHROPIC_API_KEY`** for vision fallback.
-
 ## 🔧 Configuration
 
 Copy **`.env.example`** to **`.env`** and fill required values. The template is grouped in this order for easier maintenance: **OpenAI** (key + all `OPENAI_*`), **Anthropic** (`ANTHROPIC_*`), **LangSmith** (`LANGCHAIN_*`), **LIMS**, optional **database / uploads**, then **AWS** (`DOCUMENTS_S3_BUCKET`). Compose automatically loads **`.env`** next to **`docker-compose.yml`**.
@@ -335,8 +354,8 @@ Copy **`.env.example`** to **`.env`** and fill required values. The template is 
 | `PERSIST_UPLOADS` | `false` | Write decoded uploads under `UPLOADS_DIR` |
 | `DOCUMENTS_S3_BUCKET` | empty | Set by Terraform for S3-backed deployments |
 | `OTEL_SERVICE_NAME` | `rcm-guardian` | OpenTelemetry service name |
-| `LANGCHAIN_TRACING_V2` | `true` | **Must be `true`** — tracing to LangSmith is required |
-| `LANGCHAIN_API_KEY` | — | **Required** — LangSmith API key ([Smith](https://smith.langchain.com)) |
+| `LANGCHAIN_TRACING_V2` | `true` | **Must be `true`** for default settings — enforced in **`Settings`**; startup surfaces a **`RuntimeError`** if validation fails |
+| `LANGCHAIN_API_KEY` | — | **Required** for default settings — LangSmith API key ([Smith](https://smith.langchain.com)); unset key fails **`get_settings()`** before the app serves traffic |
 | `LANGCHAIN_PROJECT` | `rcm-guardian` | LangSmith project name |
 | `LANGCHAIN_ENDPOINT` | `https://api.smith.langchain.com` | LangSmith API base URL (e.g. EU region if required) |
 
@@ -404,7 +423,7 @@ Use this as a pre-go-live pass; adapt to your org’s policies.
 ## 📊 Observability
 
 - **Grafana + Prometheus (local Compose):** after `docker compose up`, open Grafana at [http://localhost:3000](http://localhost:3000) (default `admin` / `admin`). Prometheus: [http://localhost:9090](http://localhost:9090). Targets include **`rcm-guardian-api`** scraping **`/metrics`** from the FastAPI container; panels use `rcm_auditor_confidence`, `rcm_finding_total`, `rcm_route_human_review_total`, and `rcm_graph_duration_seconds`.
-- **LangSmith:** **`LANGCHAIN_API_KEY`** and **`LANGCHAIN_TRACING_V2=true`** are **required** in `.env` (validated at startup). Traces go to the live LangSmith API. `/v1/ready` reports LangSmith configuration flags.
+- **LangSmith:** **`LANGCHAIN_API_KEY`** and **`LANGCHAIN_TRACING_V2=true`** are **required by default** in **`.env`** — **`rcm_guardian/config.py`** validates on settings load and **`rcm_guardian/app.py`** **`lifespan`** re-raises **`ValidationError`** as a **`RuntimeError`** with a short remediation line. Traces go to the live LangSmith API. **`GET /v1/ready`** reports LangSmith configuration flags (never the secret value).
 - **`rcm_guardian/app.py`:** commented **OpenTelemetry** tracer setup (OTLP → collector/Grafana backends) and **Sentry** initialization pattern — enable by adding `opentelemetry-*` / `sentry-sdk` and uncommenting; complements **`GET /metrics`** for denial-rate and audit panels in Grafana.
 
 ## 📄 License

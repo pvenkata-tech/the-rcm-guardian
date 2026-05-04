@@ -26,7 +26,7 @@
 
 | Path | Purpose |
 |------|---------|
-| **`start-local.ps1`** / **`start-local.sh`** | From **repo root**: checks `.env` for OpenAI + LangSmith keys, ensures **`samples/generated/`** exists, then **`docker compose up --build`**. |
+| **`start-local.ps1`** / **`start-local.sh`** | From **repo root**: checks **`docker`** / **`docker compose`**, `.env` for OpenAI + LangSmith keys, ensures **`samples/generated/`** exists, then **`docker compose up --build`**. |
 | **`ensure_local_data.py`** | Seed payer rules without starting the API: `python samples/ensure_local_data.py` |
 | **`generate_synthetic_samples.py`** | Fills **`generated/`** — see [**Ordinal reference**](#ordinal-reference) and **Commands**. |
 | **`render_readme_assets.py`** | Rasterize **`assets/*.svg` → `*.png`** (PyMuPDF). |

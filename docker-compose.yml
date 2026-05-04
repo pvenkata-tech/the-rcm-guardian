@@ -1,4 +1,4 @@
-# Default stack: OpenAI + LangSmith (required) + LIMS mock unless you override LIMS_BASE_URL.
+# Default stack: OpenAI + LangSmith (validated in Settings / app lifespan) + LIMS mock unless you override LIMS_BASE_URL.
 # Create `.env` beside this file — see `.env.example`.
 
 services:

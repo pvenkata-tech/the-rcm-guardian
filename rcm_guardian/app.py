@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
+from pydantic import ValidationError
 
 # --- Observability: OpenTelemetry + Sentry (commented — add deps to enable) ------------
 # Pre-architected hooks for screen-share / prod rollout:
@@ -65,7 +66,15 @@ def _snapshot(values: dict[str, Any], thread_id: str) -> ProcessDocumentResponse
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = get_settings()
+    try:
+        settings = get_settings()
+    except ValidationError as exc:
+        raise RuntimeError(
+            "RCM Guardian configuration failed at startup. Required: OPENAI_API_KEY; "
+            "LANGCHAIN_API_KEY (LangSmith); LANGCHAIN_TRACING_V2 must be true. "
+            "Copy .env.example to .env and set these variables. "
+            f"Pydantic validation detail: {exc}"
+        ) from exc
     apply_langsmith_env(settings)
     rag = await get_rag(settings)
     await seed_payer_rules_if_empty(settings, rag)

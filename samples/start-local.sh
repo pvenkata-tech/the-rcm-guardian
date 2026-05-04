@@ -33,5 +33,14 @@ if [[ "$ls_key" != true ]]; then
   exit 1
 fi
 
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: docker not found in PATH. Install Docker and retry." >&2
+  exit 1
+fi
+if ! docker compose version >/dev/null 2>&1; then
+  echo "ERROR: docker compose is not available. Use Docker Compose V2 (docker compose)." >&2
+  exit 1
+fi
+
 echo "Starting stack (Postgres, LIMS mock, API, Prometheus, Grafana)..."
 docker compose up --build

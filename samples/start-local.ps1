@@ -32,5 +32,15 @@ if (-not (Has-LangSmithKey)) {
     exit 1
 }
 
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    Write-Error "docker not found in PATH. Install Docker Desktop (or Docker Engine) and retry."
+    exit 1
+}
+& docker compose version 2>&1 | Out-Null
+if (-not $?) {
+    Write-Error "docker compose is not available. Use Docker Compose V2 (docker compose, not legacy docker-compose)."
+    exit 1
+}
+
 Write-Host "Starting stack (Postgres, LIMS mock, API, Prometheus, Grafana)..."
 docker compose up --build
