@@ -17,6 +17,17 @@
 
 ---
 
+## The Business Problem
+Unstructured clinical notes often lack the exact data points required for rigid billing codes. This discrepancy causes prior-authorization failures, requires manual auditing, and results in downstream claim denials.
+
+## The Architecture
+The RCM Guardian is a LangGraph-orchestrated pipeline that extracts and validates clinical data before claim submission. It processes multimodal billing documents, retrieves payer policies via PostgreSQL pgvector, and forensically audits the extracted entities against a LIMS (Laboratory Information Management System). If the AI auditor's confidence falls below a set threshold, the graph triggers a Postgres-checkpointed Human-In-The-Loop (HITL) interrupt for manual review.
+
+## The Objective
+Built to identify billing discrepancies at the source. Catching missing data before submission reduces manual data entry, lowers the claim denial rate, and speeds up the revenue cycle.
+
+---
+
 ## 📑 Contents
 
 | | |
